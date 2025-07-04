@@ -1,57 +1,83 @@
-/**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2013 by Appcelerator, Inc. All Rights Reserved.
- * Licensed under the terms of the Apache Public License
- * Please see the LICENSE included with this distribution for details.
- */
 package ti.modules.titanium.ui;
 
+import android.app.Activity;
+
 import org.appcelerator.kroll.KrollDict;
-import org.appcelerator.kroll.KrollModule;
 import org.appcelerator.kroll.annotations.Kroll;
 import org.appcelerator.titanium.TiC;
-import org.appcelerator.titanium.TiContext;
 import org.appcelerator.titanium.proxy.TiViewProxy;
+import org.appcelerator.titanium.util.TiConvert;
 import org.appcelerator.titanium.view.TiUIView;
 
 import ti.modules.titanium.ui.widget.searchbar.TiUISearchBar;
-import android.app.Activity;
 
-@Kroll.proxy(creatableInModule=UIModule.class, propertyAccessors = {
-	"prompt", "promptid",
-	"hintText", "hinttextid",
-	"showCancel", "barColor",
-	TiC.PROPERTY_VALUE
-})
+@Kroll.proxy(creatableInModule = UIModule.class,
+	propertyAccessors = {
+		TiC.PROPERTY_AUTOCAPITALIZATION,
+		TiC.PROPERTY_AUTOCORRECT,
+		TiC.PROPERTY_BAR_COLOR,
+		TiC.PROPERTY_COLOR,
+		TiC.PROPERTY_HINT_TEXT,
+		TiC.PROPERTY_HINT_TEXT_COLOR,
+		TiC.PROPERTY_HINT_TEXT_ID,
+		TiC.PROPERTY_ICONIFIED,
+		TiC.PROPERTY_ICONIFIED_BY_DEFAULT,
+		TiC.PROPERTY_PROMPT,
+		TiC.PROPERTY_PROMPT_ID,
+		TiC.PROPERTY_VALUE
+	})
 public class SearchBarProxy extends TiViewProxy
 {
 	public SearchBarProxy()
 	{
-		super();
+		this.defaultValues.put(TiC.PROPERTY_AUTOCAPITALIZATION, UIModule.TEXT_AUTOCAPITALIZATION_NONE);
+		this.defaultValues.put(TiC.PROPERTY_AUTOCORRECT, false);
+		this.defaultValues.put(TiC.PROPERTY_ICONIFIED_BY_DEFAULT, false);
+		this.defaultValues.put(TiC.PROPERTY_SHOW_CANCEL, false);
+		this.defaultValues.put(TiC.PROPERTY_VALUE, "");
 	}
 
-	public SearchBarProxy(TiContext tiContext)
+	@Override
+	protected KrollDict getLangConversionTable()
 	{
-		this();
-	}
-
-	@Override
-	public void handleCreationArgs(KrollModule createdInModule, Object[] args) {
-		super.handleCreationArgs(createdInModule, args);
-		setProperty(TiC.PROPERTY_VALUE, "");
-	}
-
-	@Override
-	protected KrollDict getLangConversionTable() {
 		KrollDict table = new KrollDict();
-		table.put("prompt", "promptid");
-		table.put("hintText", "hinttextid");
+		table.put(TiC.PROPERTY_PROMPT, TiC.PROPERTY_PROMPT_ID);
+		table.put(TiC.PROPERTY_HINT_TEXT, TiC.PROPERTY_HINT_TEXT_ID);
 		return table;
 	}
 
 	@Override
-	public TiUIView createView(Activity activity) {
+	public TiUIView createView(Activity activity)
+	{
 		return new TiUISearchBar(this);
+	}
+
+	@Kroll.getProperty(name = "focused")
+	public boolean isFocused()
+	{
+		TiUIView v = peekView();
+		if (v != null) {
+			return v.isFocused();
+		}
+		return false;
+	}
+
+	@Kroll.getProperty
+	public boolean getShowCancel()
+	{
+		return TiConvert.toBoolean(getProperty(TiC.PROPERTY_SHOW_CANCEL), false);
+	}
+
+	@Kroll.setProperty
+	public void setShowCancel(boolean isShown)
+	{
+		setShowCancel(isShown, null);
+	}
+
+	@Kroll.method
+	public void setShowCancel(boolean isShown, @Kroll.argument(optional = true) KrollDict options)
+	{
+		setPropertyAndFire(TiC.PROPERTY_SHOW_CANCEL, isShown);
 	}
 
 	@Override

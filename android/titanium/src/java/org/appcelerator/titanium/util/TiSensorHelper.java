@@ -1,6 +1,6 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2012 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
@@ -24,7 +24,6 @@ public class TiSensorHelper
 
 	private static SensorManager sensorManager;
 
-
 	/**
 	 * Registers a sensor listener with specified types and sensitivity.
 	 * @param types sensor's types, refer to {@link android.hardware.Sensor} for the supported list.
@@ -46,7 +45,7 @@ public class TiSensorHelper
 			return;
 		}
 
-		Sensor sensor  = sensorManager.getDefaultSensor(type);
+		Sensor sensor = sensorManager.getDefaultSensor(type);
 		if (sensor != null) {
 			Log.d(TAG, "Enabling Listener: " + sensor.getName(), Log.DEBUG_MODE);
 			sensorManager.registerListener(listener, sensor, rate);
@@ -98,11 +97,11 @@ public class TiSensorHelper
 		return sensorManager.getDefaultSensor(type) != null;
 	}
 
-	public static synchronized SensorManager getSensorManager() {
+	public static synchronized SensorManager getSensorManager()
+	{
 		if (sensorManager == null) {
 			sensorManager = (SensorManager) TiApplication.getInstance().getSystemService(Context.SENSOR_SERVICE);
 		}
 		return sensorManager;
 	}
 }
-

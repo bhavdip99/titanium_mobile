@@ -1,15 +1,14 @@
 /**
- * Appcelerator Titanium Mobile
+ * Titanium SDK
  * This is generated code. Do not modify. Your changes will be lost.
  */
 #import "ApplicationMods.h"
 
-
 @implementation ApplicationMods
 
-+ (NSArray*) compiledMods
++ (NSArray *)compiledMods
 {
-	return nil;
+  return nil;
 }
 
 @end

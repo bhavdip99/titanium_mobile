@@ -1,6 +1,6 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2011-2012 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
@@ -17,7 +17,6 @@ import org.appcelerator.kroll.common.TiMessenger;
 import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
-
 
 public class V8Function extends V8Object implements KrollFunction, Handler.Callback
 {
@@ -38,19 +37,18 @@ public class V8Function extends V8Object implements KrollFunction, Handler.Callb
 
 	public Object call(KrollObject krollObject, Object[] args)
 	{
-		if (KrollRuntime.getInstance().isRuntimeThread())
-		{
+		if (KrollRuntime.getInstance().isRuntimeThread()) {
 			return callSync(krollObject, args);
 
 		} else {
-			return TiMessenger.sendBlockingRuntimeMessage(handler.obtainMessage(MSG_CALL_SYNC), new FunctionArgs(
-				krollObject, args));
+			return TiMessenger.sendBlockingRuntimeMessage(handler.obtainMessage(MSG_CALL_SYNC),
+														  new FunctionArgs(krollObject, args));
 		}
 	}
 
 	public Object callSync(KrollObject krollObject, Object[] args)
 	{
-		if (!KrollRuntime.isInitialized()) {
+		if (KrollRuntime.isDisposed()) {
 			Log.w(TAG, "Runtime disposed, cannot call function.");
 			return null;
 		}
@@ -88,24 +86,8 @@ public class V8Function extends V8Object implements KrollFunction, Handler.Callb
 		return super.handleMessage(message);
 	}
 
-	@Override
-	public void doRelease() {
-		long functionPointer = getPointer();
-		if (functionPointer == 0) {
-			return;
-		}
-
-		nativeRelease(functionPointer);
-		KrollRuntime.suggestGC();
-	}
-
-	@Override
-	protected void finalize() throws Throwable {
-		super.finalize();
-	}
-
 	// JNI method prototypes
 	private native Object nativeInvoke(long thisPointer, long functionPointer, Object[] functionArgs);
-	private static native void nativeRelease(long functionPointer);
-}
 
+	protected native boolean nativeRelease(long functionPointer);
+}

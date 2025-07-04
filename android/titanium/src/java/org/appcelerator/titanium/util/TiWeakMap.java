@@ -1,6 +1,6 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2010 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
@@ -12,7 +12,6 @@ import java.util.HashMap;
 @SuppressWarnings("serial")
 public class TiWeakMap<K, V> extends HashMap<WeakReference<K>, V>
 {
-
 	@Override
 	public boolean containsKey(Object object)
 	{
@@ -39,17 +38,16 @@ public class TiWeakMap<K, V> extends HashMap<WeakReference<K>, V>
 			}
 		}
 		return null;
-		
 	}
 
 	@Override
 	public V remove(Object key)
 	{
 		if (key instanceof WeakReference) {
-			return super.remove(key);	
+			return super.remove(key);
 		}
 		WeakReference<K> toRemove = null;
-		for (WeakReference<K> ref: this.keySet()) {
+		for (WeakReference<K> ref : this.keySet()) {
 			if (ref.get() == key) {
 				toRemove = ref;
 				break;
@@ -61,5 +59,4 @@ public class TiWeakMap<K, V> extends HashMap<WeakReference<K>, V>
 			return null;
 		}
 	}
-
 }

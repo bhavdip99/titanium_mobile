@@ -1,6 +1,6 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2013 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
@@ -10,22 +10,29 @@ import org.appcelerator.kroll.KrollDict;
 import org.appcelerator.kroll.annotations.Kroll;
 import org.appcelerator.titanium.TiApplication;
 import org.appcelerator.titanium.TiC;
-import org.appcelerator.titanium.TiContext;
 import org.appcelerator.titanium.proxy.TiViewProxy;
 import org.appcelerator.titanium.proxy.TiWindowProxy;
-import org.appcelerator.titanium.util.TiConvert;
 import org.appcelerator.titanium.util.TiUIHelper;
 import org.appcelerator.titanium.view.TiUIView;
 
-import ti.modules.titanium.ui.widget.tabgroup.TiUIAbstractTab;
+import ti.modules.titanium.ui.widget.tabgroup.TiUIAbstractTabGroup;
+
 import android.app.Activity;
 
-@Kroll.proxy(creatableInModule=UIModule.class,
-propertyAccessors = {
-	TiC.PROPERTY_TITLE,
-	TiC.PROPERTY_TITLEID,
-	TiC.PROPERTY_ICON
-})
+@Kroll.proxy(creatableInModule = UIModule.class,
+	propertyAccessors = {
+		TiC.PROPERTY_ACTIVE_TINT_COLOR,
+		TiC.PROPERTY_ACTIVE_TITLE_COLOR,
+		TiC.PROPERTY_BADGE,
+		TiC.PROPERTY_BADGE_COLOR, // DEPRECATED: Superseded by PROPERTY_BADGE_BACKGROUND_COLOR.
+		TiC.PROPERTY_BADGE_BACKGROUND_COLOR,
+		TiC.PROPERTY_BADGE_TEXT_COLOR,
+		TiC.PROPERTY_ICON,
+		TiC.PROPERTY_TINT_COLOR,
+		TiC.PROPERTY_TITLE,
+		TiC.PROPERTY_TITLE_COLOR,
+		TiC.PROPERTY_TITLEID
+	})
 public class TabProxy extends TiViewProxy
 {
 	@SuppressWarnings("unused")
@@ -39,11 +46,6 @@ public class TabProxy extends TiViewProxy
 	public TabProxy()
 	{
 		super();
-	}
-
-	public TabProxy(TiContext tiContext)
-	{
-		this();
 	}
 
 	@Override
@@ -70,8 +72,9 @@ public class TabProxy extends TiViewProxy
 		}
 	}
 
-	@Kroll.getProperty @Kroll.method
-	public boolean getActive() {
+	@Kroll.getProperty
+	public boolean getActive()
+	{
 		if (tabGroupProxy != null) {
 			return tabGroupProxy.getActiveTab() == this;
 		}
@@ -79,8 +82,9 @@ public class TabProxy extends TiViewProxy
 		return false;
 	}
 
-	@Kroll.setProperty @Kroll.method
-	public void setActive(boolean active) {
+	@Kroll.setProperty
+	public void setActive(boolean active)
+	{
 		if (tabGroupProxy != null) {
 			tabGroupProxy.setActiveTab(this);
 		}
@@ -118,13 +122,13 @@ public class TabProxy extends TiViewProxy
 		return this.window;
 	}
 
-	@Kroll.method @Kroll.getProperty
+	@Kroll.getProperty
 	public TabGroupProxy getTabGroup()
 	{
 		return this.tabGroupProxy;
 	}
 
-	public void setTabGroup(TabGroupProxy tabGroupProxy) 
+	public void setTabGroup(TabGroupProxy tabGroupProxy)
 	{
 		setParent(tabGroupProxy);
 		this.tabGroupProxy = tabGroupProxy;
@@ -141,12 +145,12 @@ public class TabProxy extends TiViewProxy
 	{
 		windowId = id;
 	}
-	
-	public int getWindowId() 
+
+	public int getWindowId()
 	{
 		return windowId;
 	}
-	
+
 	@Override
 	public void releaseViews()
 	{
@@ -166,42 +170,11 @@ public class TabProxy extends TiViewProxy
 		}
 	}
 
-	/**
-	 * Get the color of the tab when it is active.
-	 *
-	 * @return the active color if specified, otherwise returns zero.
-	 */
-	public int getActiveTabColor()
+	@Override
+	public void release()
 	{
-		Object color = getProperty(TiC.PROPERTY_BACKGROUND_SELECTED_COLOR);
-		if (color == null) {
-			color = tabGroupProxy.getProperty(TiC.PROPERTY_ACTIVE_TAB_BACKGROUND_COLOR);
-		}
-
-		if (color != null) {
-			return TiConvert.toColor(color.toString());
-		}
-
-		return 0;
-	}
-
-	/**
-	 * Get the color of the tab when it is inactive.
-	 *
-	 * @return the inactive color if specified, otherwise returns zero.
-	 */
-	public int getTabColor()
-	{
-		Object color = getProperty(TiC.PROPERTY_BACKGROUND_COLOR);
-		if (color == null) {
-			color = tabGroupProxy.getProperty(TiC.PROPERTY_TABS_BACKGROUND_COLOR);
-		}
-
-		if (color != null) {
-			return TiConvert.toColor(color.toString());
-		}
-
-		return 0;
+		setTabGroup(null);
+		super.release();
 	}
 
 	void onFocusChanged(boolean focused, KrollDict eventData)
@@ -213,27 +186,22 @@ public class TabProxy extends TiViewProxy
 			windowOpened = true;
 			window.fireEvent(TiC.EVENT_OPEN, null, false);
 		}
-		
-		//When tab loses focus, we hide the soft keyboard.
-		Activity currentActivity = TiApplication.getAppCurrentActivity();
-		if (!focused && currentActivity != null) {
-			TiUIHelper.showSoftKeyboard(currentActivity.getWindow().getDecorView(), false);
-		}
 
 		// The focus and blur events for tab changes propagate like so:
 		//    window -> tab -> tab group
-		//    
-		// The window is optional and will be skipped if it does not exist.		
+		//
+		// The window is optional and will be skipped if it does not exist.
 		String event = focused ? TiC.EVENT_FOCUS : TiC.EVENT_BLUR;
-		
+
 		if (window != null) {
-			window.fireEvent(event, null, false);
+			// Let window proxy handle setting state boolean and firing event
+			window.onWindowFocusChange(focused);
 		}
 		fireEvent(event, eventData, true);
-		
 	}
 
-	void close(boolean activityIsFinishing) {
+	void close(boolean activityIsFinishing)
+	{
 		if (windowOpened && window != null) {
 			windowOpened = false;
 			KrollDict data = null;
@@ -247,7 +215,48 @@ public class TabProxy extends TiViewProxy
 
 	void onSelectionChanged(boolean selected)
 	{
-		((TiUIAbstractTab) view).onSelectionChange(selected);
+		if (!selected) {
+			//When tab selection changes, we hide the soft keyboard.
+			Activity currentActivity = TiApplication.getAppCurrentActivity();
+			if (currentActivity != null) {
+				TiUIHelper.showSoftKeyboard(currentActivity.getWindow().getDecorView(), false);
+			}
+		}
+	}
+
+	@Override
+	public void onPropertyChanged(String name, Object value)
+	{
+		super.onPropertyChanged(name, value);
+
+		// Fetch the TabGroup's view. If currently null, then we have to wait for TabGroup activity to be created.
+		TiUIView view = (this.tabGroupProxy != null) ? this.tabGroupProxy.peekView() : null;
+		if (!(view instanceof TiUIAbstractTabGroup)) {
+			return;
+		}
+		TiUIAbstractTabGroup tabGroupView = (TiUIAbstractTabGroup) view;
+
+		// Update tab.
+		if (name.equals(TiC.PROPERTY_BACKGROUND_COLOR) || name.equals(TiC.PROPERTY_BACKGROUND_FOCUSED_COLOR)) {
+			tabGroupView.updateTabBackgroundDrawable(this.tabGroupProxy.getTabIndex(this));
+		} else if (name.equals(TiC.PROPERTY_TITLE)) {
+			tabGroupView.updateTabTitle(this.tabGroupProxy.getTabIndex(this));
+		} else if (name.equals(TiC.PROPERTY_TITLE_COLOR) || name.equals(TiC.PROPERTY_ACTIVE_TITLE_COLOR)) {
+			tabGroupView.updateTabTitleColor(this.tabGroupProxy.getTabIndex(this));
+		} else if (name.equals(TiC.PROPERTY_ICON)) {
+			tabGroupView.updateTabIcon(this.tabGroupProxy.getTabIndex(this));
+		} else if (name.equals(TiC.PROPERTY_BADGE)) {
+			tabGroupView.updateBadge(this.tabGroupProxy.getTabIndex(this));
+		} else if (name.equals(TiC.PROPERTY_BADGE_COLOR) || name.equals(TiC.PROPERTY_BADGE_BACKGROUND_COLOR)
+			|| name.equals(TiC.PROPERTY_BADGE_TEXT_COLOR)) {
+			tabGroupView.updateBadgeColor(this.tabGroupProxy.getTabIndex(this));
+		}
+	}
+
+	@Kroll.method
+	public void popToRootWindow()
+	{
+		TiApplication.getInstance().popToRootWindow();
 	}
 
 	@Override

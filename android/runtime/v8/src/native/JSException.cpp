@@ -1,52 +1,39 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2011 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
 #include <jni.h>
 #include <v8.h>
 
-#include "JNIUtil.h"
 #include "TypeConverter.h"
-
 #include "JSException.h"
 
 using namespace v8;
 
 namespace titanium {
 
-Handle<Value> JSException::fromJavaException(jthrowable javaException)
+Local<Value> JSException::fromJavaException(v8::Isolate* isolate, jthrowable javaException)
 {
-	JNIEnv *env = JNIScope::getEnv();
+	JNIEnv* env = JNIScope::getEnv();
 	if (!env) {
-		return GetJNIEnvironmentError();
+		return GetJNIEnvironmentError(isolate);
 	}
-
-	env->ExceptionDescribe();
 
 	bool deleteRef = false;
 	if (!javaException) {
 		javaException = env->ExceptionOccurred();
-		env->ExceptionClear();
 		deleteRef = true;
 	}
+	env->ExceptionClear();
 
-	//env->ExceptionDescribe();
-
-	jstring message = (jstring) env->CallObjectMethod(javaException, JNIUtil::throwableGetMessageMethod);
-	if (!message) {
-		return THROW("Java Exception occurred");
-	}
-
-	Handle<Value> jsMessage = TypeConverter::javaStringToJsString(env, message);
-	env->DeleteLocalRef(message);
-
+	Local<Object> error = TypeConverter::javaThrowableToJSError(isolate, env, javaException);
 	if (deleteRef) {
 		env->DeleteLocalRef(javaException);
 	}
-
-	return ThrowException(Exception::Error(jsMessage->ToString()));
+	// throw it
+	return isolate->ThrowException(error);
 }
 
 }

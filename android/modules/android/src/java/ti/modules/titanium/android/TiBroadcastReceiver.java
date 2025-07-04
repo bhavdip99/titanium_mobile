@@ -1,6 +1,6 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2013 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
@@ -43,7 +43,7 @@ public class TiBroadcastReceiver extends BroadcastReceiver
 	{
 		if (url != null) {
 			KrollRuntime.isInitialized();
-			KrollRuntime.getInstance().runModule(KrollAssetHelper.readAsset(url), url, proxy);
+			KrollRuntime.getInstance().runModuleBytes(KrollAssetHelper.readAssetBytes(url), url, proxy);
 		} else if (callback != null) {
 			KrollDict event = new KrollDict();
 			event.put(TiC.EVENT_PROPERTY_INTENT, new IntentProxy(intent));

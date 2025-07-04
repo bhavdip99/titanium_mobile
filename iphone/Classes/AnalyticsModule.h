@@ -1,24 +1,34 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2010 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
 
-#import "TiModule.h"
-#import "PlausibleDatabase.h"
+@import JavaScriptCore;
+@import TitaniumKit.ObjcModule;
 
-@interface AnalyticsModule : TiModule {
-@private
-	PLSqliteDatabase* database;
-	NSOperationQueue * eventQueue;
-	NSTimer *retryTimer;
-	NSTimer *flushTimer;
-	NSURL *url;
-	NSRecursiveLock *lock;
-	NSString * lastEvent;
-}
+@protocol AnalyticsExports <JSExport>
 
-@property(nonatomic,copy) NSString * lastEvent;
+// Properties (and accessors)
+READONLY_PROPERTY(NSString *, lastEvent, LastEvent);
+PROPERTY(bool, optedOut, OptedOut);
+
+// Methods
+JSExportAs(featureEvent,
+           -(NSInteger)featureEvent
+           : (NSString *)name withData
+           : (id)data);
+- (void)filterEvents:(NSArray *)events;
+JSExportAs(navEvent,
+           -(void)navEvent
+           : (NSString *)from to
+           : (NSString *)to withName
+           : (NSString *)name withData
+           : (NSDictionary *)data);
+
+@end
+
+@interface AnalyticsModule : ObjcModule <AnalyticsExports>
 
 @end

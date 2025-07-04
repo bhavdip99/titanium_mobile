@@ -1,6 +1,6 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2010 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
@@ -11,18 +11,17 @@
 
 @implementation TiUICanvasViewProxy
 
--(void)begin:(id)args
+- (void)begin:(id)args
 {
-	TiUICanvasView *canvas = (TiUICanvasView*)[self view];
-	[canvas begin];
+  TiUICanvasView *canvas = (TiUICanvasView *)[self view];
+  [canvas begin];
 }
 
--(void)commit:(id)args
+- (void)commit:(id)args
 {
-	TiUICanvasView *canvas = (TiUICanvasView*)[self view];
-	[canvas commit];
+  TiUICanvasView *canvas = (TiUICanvasView *)[self view];
+  [canvas commit];
 }
-
 
 @end
 

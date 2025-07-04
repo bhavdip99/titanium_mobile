@@ -1,23 +1,22 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2011 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
 
 package ti.modules.titanium.media;
 
-public interface TiPlaybackListener
-{
-	public void onStartPlayback();
+public interface TiPlaybackListener {
+	void onStartPlayback();
 
-	public void onPausePlayback();
+	void onPausePlayback();
 
-	public void onStopPlayback();
+	void onStopPlayback();
 
-	public void onPlayingPlayback();
-	
-	public void onSeekingBackward();
-	
-	public void onSeekingForward();
+	void onPlayingPlayback();
+
+	void onSeekingBackward();
+
+	void onSeekingForward();
 }

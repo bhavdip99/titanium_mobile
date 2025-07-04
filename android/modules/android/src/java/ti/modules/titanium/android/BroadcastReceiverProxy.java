@@ -1,6 +1,6 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2013 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
@@ -46,13 +46,13 @@ public class BroadcastReceiverProxy extends KrollProxy
 		}
 	}
 
-	@Kroll.method @Kroll.setProperty
+	@Kroll.setProperty
 	public void setUrl(String url)
 	{
 		receiver.setUrl(url);
 	}
 
-	@Kroll.method @Kroll.setProperty
+	@Kroll.setProperty
 	public void setOnReceived(Object callback)
 	{
 		if (callback instanceof KrollFunction) {

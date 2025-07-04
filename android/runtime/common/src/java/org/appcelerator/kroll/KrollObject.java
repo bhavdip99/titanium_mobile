@@ -1,11 +1,12 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2011 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
 package org.appcelerator.kroll;
 
+import java.lang.ref.WeakReference;
 import java.util.HashMap;
 
 import org.appcelerator.kroll.common.AsyncResult;
@@ -19,19 +20,18 @@ import android.os.Message;
  */
 public abstract class KrollObject implements Handler.Callback
 {
-
 	protected static final int MSG_RELEASE = 100;
 	protected static final int MSG_SET_WINDOW = 101;
 	protected static final int MSG_LAST_ID = MSG_SET_WINDOW;
 
-	protected HashMap<String, Boolean> hasListenersForEventType = new HashMap<String, Boolean>();
+	protected HashMap<String, Boolean> hasListenersForEventType = new HashMap<>();
 	protected Handler handler;
 
-	private KrollProxySupport proxySupport;
+	private WeakReference<KrollProxySupport> proxySupport;
 
 	public KrollObject()
 	{
-		handler = new Handler(TiMessenger.getRuntimeMessenger().getLooper(), this);	
+		handler = new Handler(TiMessenger.getRuntimeMessenger().getLooper(), this);
 	}
 
 	/**
@@ -40,7 +40,7 @@ public abstract class KrollObject implements Handler.Callback
 	 */
 	public void setProxySupport(KrollProxySupport proxySupport)
 	{
-		this.proxySupport = proxySupport;
+		this.proxySupport = new WeakReference<>(proxySupport);
 	}
 
 	/**
@@ -54,8 +54,7 @@ public abstract class KrollObject implements Handler.Callback
 		if (hasListeners == null) {
 			return false;
 		}
-
-		return hasListeners.booleanValue();
+		return hasListeners;
 	}
 
 	/**
@@ -66,8 +65,10 @@ public abstract class KrollObject implements Handler.Callback
 	public void setHasListenersForEventType(String event, boolean hasListeners)
 	{
 		hasListenersForEventType.put(event, hasListeners);
-		if (proxySupport != null) {
-			proxySupport.onHasListenersChanged(event, hasListeners);
+
+		KrollProxySupport proxy = (proxySupport != null) ? proxySupport.get() : null;
+		if (proxy != null) {
+			proxy.onHasListenersChanged(event, hasListeners);
 		}
 	}
 
@@ -78,8 +79,9 @@ public abstract class KrollObject implements Handler.Callback
 	 */
 	public void onEventFired(String event, Object data)
 	{
-		if (proxySupport != null) {
-			proxySupport.onEventFired(event, data);
+		KrollProxySupport proxy = (proxySupport != null) ? proxySupport.get() : null;
+		if (proxy != null) {
+			proxy.onEventFired(event, data);
 		}
 	}
 
@@ -99,8 +101,7 @@ public abstract class KrollObject implements Handler.Callback
 	 * </p>
 	 *
 	 * <p>
-	 * If the property does not reference a function this method
-	 * will return the {@link KrollRuntime.UNDEFINED} value.
+	 * If the property does not reference a function this method will return null.
 	 * </p>
 	 *
 	 * @param propertyName name of the property that references the function to call
@@ -110,7 +111,7 @@ public abstract class KrollObject implements Handler.Callback
 	public abstract Object callProperty(String propertyName, Object[] args);
 
 	/**
-	 * Releases this KrollObject, that is, removes event listeners and any associated native views or content.	
+	 * Releases this KrollObject, that is, removes event listeners and any associated native views or content.
 	 */
 	protected void release()
 	{
@@ -155,8 +156,8 @@ public abstract class KrollObject implements Handler.Callback
 
 	public abstract Object getNativeObject();
 	protected abstract void setProperty(String name, Object value);
-	protected abstract boolean fireEvent(KrollObject source, String type, Object data, boolean bubbles, boolean reportSuccess, int code, String message);
+	protected abstract boolean fireEvent(KrollObject source, String type, Object data, boolean bubbles,
+										 boolean reportSuccess, int code, String message);
 	protected abstract void doRelease();
 	protected abstract void doSetWindow(Object windowProxyObject);
 }
-

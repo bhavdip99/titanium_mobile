@@ -1,18 +1,20 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2013 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
 package org.appcelerator.titanium;
 
 import java.lang.ref.WeakReference;
+import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Stack;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.appcelerator.kroll.KrollDict;
 import org.appcelerator.kroll.KrollFunction;
+import org.appcelerator.kroll.KrollObject;
+import org.appcelerator.kroll.KrollPromise;
 import org.appcelerator.kroll.KrollProxy;
 import org.appcelerator.kroll.KrollRuntime;
 import org.appcelerator.kroll.common.Log;
@@ -20,59 +22,104 @@ import org.appcelerator.kroll.common.TiMessenger;
 import org.appcelerator.titanium.TiLifecycle.OnLifecycleEvent;
 import org.appcelerator.titanium.TiLifecycle.OnWindowFocusChangedEvent;
 import org.appcelerator.titanium.TiLifecycle.interceptOnBackPressedEvent;
-import org.appcelerator.titanium.analytics.TiAnalyticsEventFactory;
+import org.appcelerator.titanium.TiLifecycle.OnActivityResultEvent;
+import org.appcelerator.titanium.TiLifecycle.OnInstanceStateEvent;
+import org.appcelerator.titanium.TiLifecycle.OnCreateOptionsMenuEvent;
+import org.appcelerator.titanium.TiLifecycle.OnPrepareOptionsMenuEvent;
 import org.appcelerator.titanium.proxy.ActionBarProxy;
 import org.appcelerator.titanium.proxy.ActivityProxy;
-import org.appcelerator.titanium.proxy.IntentProxy;
+import org.appcelerator.titanium.proxy.TiToolbarProxy;
 import org.appcelerator.titanium.proxy.TiViewProxy;
 import org.appcelerator.titanium.proxy.TiWindowProxy;
 import org.appcelerator.titanium.util.TiActivityResultHandler;
 import org.appcelerator.titanium.util.TiActivitySupport;
 import org.appcelerator.titanium.util.TiActivitySupportHelper;
+import org.appcelerator.titanium.util.TiColorHelper;
 import org.appcelerator.titanium.util.TiConvert;
+import org.appcelerator.titanium.util.TiLocaleManager;
 import org.appcelerator.titanium.util.TiMenuSupport;
-import org.appcelerator.titanium.util.TiPlatformHelper;
 import org.appcelerator.titanium.util.TiUIHelper;
 import org.appcelerator.titanium.util.TiWeakList;
+import org.appcelerator.titanium.view.TiActionBarStyleHandler;
+import org.appcelerator.titanium.view.TiActivitySafeAreaMonitor;
 import org.appcelerator.titanium.view.TiCompositeLayout;
 import org.appcelerator.titanium.view.TiCompositeLayout.LayoutArrangement;
+import org.appcelerator.titanium.view.TiInsetsProvider;
 
 import android.app.Activity;
-import android.app.AlertDialog;
+
+import androidx.appcompat.app.ActionBar;
+import androidx.appcompat.app.AppCompatActivity;
 import android.app.Dialog;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentSender;
+import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.graphics.Insets;
 import android.graphics.PixelFormat;
+import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Message;
 import android.os.Messenger;
+import android.os.PowerManager;
 import android.os.RemoteException;
-import android.support.v4.app.FragmentActivity;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatDelegate;
+import androidx.appcompat.widget.Toolbar;
+
+import android.text.Spannable;
+import android.text.SpannableStringBuilder;
+import android.text.style.ForegroundColorSpan;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.view.ViewGroup.LayoutParams;
 
 /**
  * The base class for all non tab Titanium activities. To learn more about Activities, see the
  * <a href="http://developer.android.com/reference/android/app/Activity.html">Android Activity documentation</a>.
  */
-public abstract class TiBaseActivity extends FragmentActivity 
-	implements TiActivitySupport/*, ITiWindowHandler*/
+public abstract class TiBaseActivity extends AppCompatActivity implements TiActivitySupport /*, ITiWindowHandler*/
 {
 	private static final String TAG = "TiBaseActivity";
-
-	private static OrientationChangedListener orientationChangedListener = null;
 
 	private boolean onDestroyFired = false;
 	private int originalOrientationMode = -1;
 	private boolean inForeground = false; // Indicates whether this activity is in foreground or not.
-	private TiWeakList<OnLifecycleEvent> lifecycleListeners = new TiWeakList<OnLifecycleEvent>();
-	private TiWeakList<OnWindowFocusChangedEvent> windowFocusChangedListeners = new TiWeakList<OnWindowFocusChangedEvent>();
-	private TiWeakList<interceptOnBackPressedEvent> interceptOnBackPressedListeners = new TiWeakList<interceptOnBackPressedEvent>();
+	private final TiWeakList<OnLifecycleEvent> lifecycleListeners = new TiWeakList<>();
+	private final TiWeakList<OnWindowFocusChangedEvent> windowFocusChangedListeners = new TiWeakList<>();
+	private final TiWeakList<interceptOnBackPressedEvent> interceptOnBackPressedListeners = new TiWeakList<>();
+	private final TiWeakList<OnInstanceStateEvent> instanceStateListeners = new TiWeakList<>();
+	private final TiWeakList<OnActivityResultEvent> onActivityResultListeners = new TiWeakList<>();
+	private final TiWeakList<OnCreateOptionsMenuEvent> onCreateOptionsMenuListeners = new TiWeakList<>();
+	private final TiWeakList<OnPrepareOptionsMenuEvent> onPrepareOptionsMenuListeners = new TiWeakList<>();
+	private boolean sustainMode = false;
+	private int lastUIModeFlags = 0;
+	private int lastNightMode = AppCompatDelegate.MODE_NIGHT_UNSPECIFIED;
+	private Intent launchIntent = null;
+	private TiActionBarStyleHandler actionBarStyleHandler;
+	private TiActivitySafeAreaMonitor safeAreaMonitor;
+	private Context baseContext;
+	public boolean keyboardVisible = false;
+	/**
+	 * Callback to be invoked when the TiBaseActivity.onRequestPermissionsResult() has been called,
+	 * providing the results of a requestPermissions() call. Instances of this interface are to
+	 * be passed to the TiBaseActivity.registerPermissionRequestCallback() method.
+	 */
+	public interface OnRequestPermissionsResultCallback {
+		void onRequestPermissionsResult(
+			@NonNull TiBaseActivity activity, int requestCode,
+			@NonNull String[] permissions, @NonNull int[] grantResults);
+	}
+
+	private static final HashMap<Integer, TiBaseActivity.OnRequestPermissionsResultCallback>
+		permissionsResultCallbackMap = new HashMap<>();
 
 	protected View layout;
 	protected TiActivitySupportHelper supportHelper;
@@ -80,31 +127,34 @@ public abstract class TiBaseActivity extends FragmentActivity
 	protected TiWindowProxy window;
 	protected TiViewProxy view;
 	protected ActivityProxy activityProxy;
-	protected TiWeakList<ConfigurationChangedListener> configChangedListeners = new TiWeakList<ConfigurationChangedListener>();
-	protected int orientationDegrees;
+	protected TiWeakList<ConfigurationChangedListener> configChangedListeners = new TiWeakList<>();
 	protected TiMenuSupport menuHelper;
 	protected Messenger messenger;
 	protected int msgActivityCreatedId = -1;
 	protected int msgId = -1;
-	protected static int previousOrientation = -1;
-	//Storing the activity's dialogs and their persistence 
-	private CopyOnWriteArrayList<DialogWrapper> dialogs = new CopyOnWriteArrayList<DialogWrapper>();
-	private Stack<TiWindowProxy> windowStack = new Stack<TiWindowProxy>();
-
+	//Storing the activity's dialogs and their persistence
+	private final CopyOnWriteArrayList<DialogWrapper> dialogs = new CopyOnWriteArrayList<>();
 	public TiWindowProxy lwWindow;
 	public boolean isResumed = false;
 
-	public class DialogWrapper {
+	public static boolean canFinishRoot = true;
+
+	private boolean overridenLayout;
+
+	public static class DialogWrapper
+	{
 		boolean isPersistent;
-		AlertDialog dialog;
+		Dialog dialog;
+
 		WeakReference<TiBaseActivity> dialogActivity;
-		
-		public DialogWrapper(AlertDialog d, boolean persistent, WeakReference<TiBaseActivity> activity) {
+
+		public DialogWrapper(Dialog d, boolean persistent, WeakReference<TiBaseActivity> activity)
+		{
 			isPersistent = persistent;
 			dialog = d;
 			dialogActivity = activity;
 		}
-		
+
 		public TiBaseActivity getActivity()
 		{
 			if (dialogActivity == null) {
@@ -119,15 +169,17 @@ public abstract class TiBaseActivity extends FragmentActivity
 			dialogActivity = da;
 		}
 
-		public AlertDialog getDialog() {
+		public Dialog getDialog()
+		{
 			return dialog;
 		}
-		
-		public void setDialog(AlertDialog d) {
+
+		public void setDialog(Dialog d)
+		{
 			dialog = d;
 		}
-		
-		public void release() 
+
+		public void release()
 		{
 			dialog = null;
 			dialogActivity = null;
@@ -138,71 +190,14 @@ public abstract class TiBaseActivity extends FragmentActivity
 			return isPersistent;
 		}
 
-		public void setPersistent(boolean p) 
+		public void setPersistent(boolean p)
 		{
 			isPersistent = p;
 		}
 	}
 
-	public void addWindowToStack(TiWindowProxy proxy)
-	{
-		if (windowStack.contains(proxy)) {
-			Log.e(TAG, "Window already exists in stack", Log.DEBUG_MODE);
-			return;
-		}
-		boolean isEmpty = windowStack.empty();
-		if (!isEmpty) {
-			windowStack.peek().onWindowFocusChange(false);
-		}
-		windowStack.add(proxy);
-		if (!isEmpty) {
-			proxy.onWindowFocusChange(true);
-		}
-	}
-
-	public void removeWindowFromStack(TiWindowProxy proxy)
-	{
-		proxy.onWindowFocusChange(false);
-
-		boolean isTopWindow = ( (!windowStack.isEmpty()) && (windowStack.peek() == proxy) ) ? true : false;
-		windowStack.remove(proxy);
-
-		//Fire focus only if activity is not paused and the removed window was topWindow
-		if (!windowStack.empty() && isResumed && isTopWindow) {
-			TiWindowProxy nextWindow = windowStack.peek();
-			nextWindow.onWindowFocusChange(true);
-		}
-	}
-
-	/**
-	 * Returns the window at the top of the stack.
-	 * @return the top window or null if the stack is empty.
-	 */
-	public TiWindowProxy topWindowOnStack()
-	{
-		return (windowStack.isEmpty()) ? null : windowStack.peek();
-	}
-
-	// could use a normal ConfigurationChangedListener but since only orientation changes are
-	// forwarded, create a separate interface in order to limit scope and maintain clarity 
-	public static interface OrientationChangedListener
-	{
-		public void onOrientationChanged (int configOrientationMode);
-	}
-
-	public static void registerOrientationListener (OrientationChangedListener listener)
-	{
-		orientationChangedListener = listener;
-	}
-
-	public static void deregisterOrientationListener()
-	{
-		orientationChangedListener = null;
-	}
-
-	public static interface ConfigurationChangedListener
-	{
-		public void onConfigurationChanged(TiBaseActivity activity, Configuration newConfig);
+	public interface ConfigurationChangedListener {
+		void onConfigurationChanged(TiBaseActivity activity, Configuration newConfig);
 	}
 
 	/**
@@ -223,18 +218,17 @@ public abstract class TiBaseActivity extends FragmentActivity
 
 	/**
 	 * Sets the window proxy.
-	 * @param proxy
+	 * @param proxy The proxy to be assigned to this activity.
 	 */
 	public void setWindowProxy(TiWindowProxy proxy)
 	{
 		this.window = proxy;
-		updateTitle();
 	}
 
 	/**
 	 * Sets the proxy for our layout (used for post layout event)
-	 * 
-	 * @param proxy
+	 *
+	 * @param proxy The proxy to be assigned to activity's root view.
 	 */
 	public void setLayoutProxy(TiViewProxy proxy)
 	{
@@ -245,7 +239,7 @@ public abstract class TiBaseActivity extends FragmentActivity
 
 	/**
 	 * Sets the view proxy.
-	 * @param proxy
+	 * @param proxy Proxy to be used as root decor view.
 	 */
 	public void setViewProxy(TiViewProxy proxy)
 	{
@@ -260,14 +254,14 @@ public abstract class TiBaseActivity extends FragmentActivity
 		return activityProxy;
 	}
 
-	public void addDialog(DialogWrapper d) 
+	public void addDialog(DialogWrapper d)
 	{
-		if (!dialogs.contains(d)) {
+		if ((d != null) && !dialogs.contains(d)) {
 			dialogs.add(d);
 		}
 	}
-	
-	public void removeDialog(Dialog d) 
+
+	public void removeDialog(Dialog d)
 	{
 		for (int i = 0; i < dialogs.size(); i++) {
 			DialogWrapper p = dialogs.get(i);
@@ -298,22 +292,12 @@ public abstract class TiBaseActivity extends FragmentActivity
 
 	public void addConfigurationChangedListener(ConfigurationChangedListener listener)
 	{
-		configChangedListeners.add(new WeakReference<ConfigurationChangedListener>(listener));
+		configChangedListeners.add(new WeakReference<>(listener));
 	}
 
 	public void removeConfigurationChangedListener(ConfigurationChangedListener listener)
 	{
 		configChangedListeners.remove(listener);
-	}
-
-	public void registerOrientationChangedListener (OrientationChangedListener listener)
-	{
-		orientationChangedListener = listener;
-	}
-
-	public void deregisterOrientationChangedListener()
-	{
-		orientationChangedListener = null;
 	}
 
 	protected boolean getIntentBoolean(String property, boolean defaultValue)
@@ -352,14 +336,15 @@ public abstract class TiBaseActivity extends FragmentActivity
 		return defaultValue;
 	}
 
-
 	protected void updateTitle()
 	{
-		if (window == null) return;
+		if (window == null)
+			return;
 
 		if (window.hasProperty(TiC.PROPERTY_TITLE)) {
 			String oldTitle = (String) getTitle();
 			String newTitle = TiConvert.toString(window.getProperty(TiC.PROPERTY_TITLE));
+			int colorInt = -1;
 
 			if (oldTitle == null) {
 				oldTitle = "";
@@ -369,11 +354,32 @@ public abstract class TiBaseActivity extends FragmentActivity
 				newTitle = "";
 			}
 
+			if (window.hasProperty(TiC.PROPERTY_TITLE_ATTRIBUTES)) {
+				KrollDict innerAttributes = window.getProperties().getKrollDict(TiC.PROPERTY_TITLE_ATTRIBUTES);
+				colorInt = TiColorHelper.parseColor(
+					TiConvert.toString(innerAttributes.getString(TiC.PROPERTY_COLOR)), this);
+			}
+
 			if (!newTitle.equals(oldTitle)) {
 				final String fnewTitle = newTitle;
-				runOnUiThread(new Runnable(){
-					public void run() {
+				final int finalColorInt = colorInt;
+				runOnUiThread(new Runnable() {
+					public void run()
+					{
 						setTitle(fnewTitle);
+
+						ActionBar actionBar = getSupportActionBar();
+						if (actionBar != null) {
+							if (finalColorInt != -1) {
+								SpannableStringBuilder ssb;
+								ssb = new SpannableStringBuilder(fnewTitle);
+								ssb.setSpan(new ForegroundColorSpan(finalColorInt),
+									0, ssb.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
+								actionBar.setTitle(ssb);
+							} else {
+								actionBar.setTitle(fnewTitle);
+							}
+						}
 					}
 				});
 			}
@@ -383,60 +389,228 @@ public abstract class TiBaseActivity extends FragmentActivity
 	// Subclasses can override to provide a custom layout
 	protected View createLayout()
 	{
+		// Set up the view's layout.
 		LayoutArrangement arrangement = LayoutArrangement.DEFAULT;
-
 		String layoutFromIntent = getIntentString(TiC.INTENT_PROPERTY_LAYOUT, "");
 		if (layoutFromIntent.equals(TiC.LAYOUT_HORIZONTAL)) {
 			arrangement = LayoutArrangement.HORIZONTAL;
-
 		} else if (layoutFromIntent.equals(TiC.LAYOUT_VERTICAL)) {
 			arrangement = LayoutArrangement.VERTICAL;
 		}
 
-		// set to null for now, this will get set correctly in setWindowProxy()
-		return new TiCompositeLayout(this, arrangement, null);
+		// Create the root view to be used by the activity.
+		// - Set the layout's proxy to null for now. Will be set later via setWindowProxy().
+		// - Make it focusable so Android won't auto-focus on the first focusable child view in the window.
+		//   This makes it match iOS' behavior where no child view has the focus when a window is opened.
+		TiCompositeLayout compositeLayout = new TiCompositeLayout(this, arrangement, null);
+		compositeLayout.setFocusable(true);
+		compositeLayout.setFocusableInTouchMode(true);
+		compositeLayout.setDescendantFocusability(TiCompositeLayout.FOCUS_BEFORE_DESCENDANTS);
+		return compositeLayout;
+	}
+
+	@Override
+	public void onRequestPermissionsResult(
+		int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults)
+	{
+		OnRequestPermissionsResultCallback callback = permissionsResultCallbackMap.get(requestCode);
+		if (callback != null) {
+			callback.onRequestPermissionsResult(this, requestCode, permissions, grantResults);
+		}
+	}
+
+	/**
+	 * Removes the global callback assigned via the registerPermissionRequestCallback() method.
+	 * @param requestCode The unique integer ID associated with the callback.
+	 * @return Returns true if callback was removed. Returns false if callback for given request code was not found.
+	 */
+	public static boolean unregisterPermissionRequestCallback(int requestCode)
+	{
+		return (permissionsResultCallbackMap.remove(requestCode) != null);
+	}
+
+	/**
+	 * Registers a global callback to be invoked when onRequestPermissionsResult() is called for the given
+	 * request code. Indicates if permissions were granted from a requestPermissions() method call.
+	 * <p>
+	 * The registered callback can be removed via the TiBaseActivity.unregisterPermissionRequestCallback() method.
+	 * @param requestCode Unique 8-bit integer ID to be used by the requestPermissions() method.
+	 * @param callback Callback to be invoked when the activity's onRequestPermissionsResult() method has been called.
+	 */
+	public static void registerPermissionRequestCallback(
+		int requestCode, @NonNull TiBaseActivity.OnRequestPermissionsResultCallback callback)
+	{
+		if (callback != null) {
+			permissionsResultCallbackMap.put(requestCode, callback);
+		}
+	}
+
+	/**
+	 * Registers a global KrollCallback to be invoked when onRequestPermissionsResult() is called for the given
+	 * request code. Indicates if permissions were granted from a requestPermissions() method call.
+	 * <p>
+	 * The registered callback can be removed via the TiBaseActivity.unregisterPermissionRequestCallback() method.
+	 * @param requestCode Unique 8-bit integer ID to be used by the requestPermissions() method.
+	 * @param callback
+	 * Callback to be invoked with KrollDict properties "success", "code", and an optional "message". Can be null.
+	 * @param context KrollObject providing the JavaScript context needed to invoke a JS callback.
+	 */
+	public static void registerPermissionRequestCallback(
+		Integer requestCode, final KrollFunction callback, final KrollObject context)
+	{
+		TiBaseActivity.registerPermissionRequestCallback(requestCode, callback, context, null);
+	}
+
+	/**
+	 * Registers a global KrollCallback to be invoked when onRequestPermissionsResult() is called for the given
+	 * request code. Indicates if permissions were granted from a requestPermissions() method call.
+	 * <p>
+	 * The registered callback can be removed via the TiBaseActivity.unregisterPermissionRequestCallback() method.
+	 * @param requestCode Unique 8-bit integer ID to be used by the requestPermissions() method.
+	 * @param callback
+	 * Callback to be invoked with KrollDict properties "success", "code", and an optional "message". Can be null.
+	 * @param context KrollObject providing the JavaScript context needed to invoke a JS callback.
+	 * @param promise Promise to be invoked. Can be null.
+	 */
+	public static void registerPermissionRequestCallback(
+		Integer requestCode, final KrollFunction callback, final KrollObject context,
+		final KrollPromise<KrollDict> promise)
+	{
+		if (requestCode == null) {
+			return;
+		}
+
+		permissionsResultCallbackMap.put(requestCode, new OnRequestPermissionsResultCallback() {
+			@Override
+			public void onRequestPermissionsResult(
+				@NonNull TiBaseActivity activity, int requestCode,
+				@NonNull String[] permissions, @NonNull int[] grantResults)
+			{
+				if (callback == null && promise == null) {
+					return;
+				}
+
+				String deniedPermissions = "";
+				for (int i = 0; i < grantResults.length; ++i) {
+					if (grantResults[i] == PackageManager.PERMISSION_DENIED) {
+						if (deniedPermissions.isEmpty()) {
+							deniedPermissions = permissions[i];
+						} else {
+							deniedPermissions = deniedPermissions + ", " + permissions[i];
+						}
+					}
+				}
+
+				KrollDict response = new KrollDict();
+				if (deniedPermissions.isEmpty()) {
+					response.putCodeAndMessage(0, null);
+				} else {
+					response.putCodeAndMessage(-1, "Permission(s) denied: " + deniedPermissions);
+				}
+				if (context == null) {
+					Log.w(TAG, "Permission callback context object is null");
+				}
+				if (callback != null) {
+					callback.callAsync(context, response);
+				}
+				if (promise != null) {
+					if (deniedPermissions.isEmpty()) {
+						promise.resolve(response);
+					} else {
+						promise.reject(response);
+					}
+				}
+			}
+		});
 	}
 
 	protected void setFullscreen(boolean fullscreen)
 	{
 		if (fullscreen) {
-			getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-		}
-	}
-
-	protected void setNavBarHidden(boolean hidden)
-	{
-		if (!hidden) {
-			if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
-				// Do not enable these features on Honeycomb or later since it will break the action bar.
-				this.requestWindowFeature(Window.FEATURE_LEFT_ICON);
-				this.requestWindowFeature(Window.FEATURE_RIGHT_ICON);
-			}
-
-			this.requestWindowFeature(Window.FEATURE_PROGRESS);
-			this.requestWindowFeature(Window.FEATURE_INDETERMINATE_PROGRESS);
-
-		} else {
-			this.requestWindowFeature(Window.FEATURE_NO_TITLE);
+			//getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+			View decorView = getWindow().getDecorView();
+			// Hide both the navigation bar and the status bar.
+			// SYSTEM_UI_FLAG_FULLSCREEN is only available on Android 4.1 and higher, but as
+			// a general rule, you should design your app to hide the status bar whenever you
+			// hide the navigation bar.
+			int uiOptions = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_FULLSCREEN;
+			decorView.setSystemUiVisibility(uiOptions);
 		}
 	}
 
 	// Subclasses can override to handle post-creation (but pre-message fire) logic
-	protected void windowCreated()
+	protected void windowCreated(Bundle savedInstanceState)
 	{
 		boolean fullscreen = getIntentBoolean(TiC.PROPERTY_FULLSCREEN, false);
-		boolean navBarHidden = getIntentBoolean(TiC.PROPERTY_NAV_BAR_HIDDEN, false);
 		boolean modal = getIntentBoolean(TiC.PROPERTY_MODAL, false);
 		int softInputMode = getIntentInt(TiC.PROPERTY_WINDOW_SOFT_INPUT_MODE, -1);
+		int windowFlags = getIntentInt(TiC.PROPERTY_WINDOW_FLAGS, 0);
 		boolean hasSoftInputMode = softInputMode != -1;
-		
-		setFullscreen(fullscreen);
-		setNavBarHidden(navBarHidden);
 
-		if (modal) {
-			if (Build.VERSION.SDK_INT < TiC.API_LEVEL_ICE_CREAM_SANDWICH) {
-				// This flag is deprecated in API 14. On ICS, the background is not blurred but straight black.
-				getWindow().addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
+		setFullscreen(fullscreen);
+
+		// Add additional window flags to better handle fullscreen support on devices with notches.
+		{
+			// Fetch flags.
+			int uiFlags = getWindow().getDecorView().getSystemUiVisibility();
+			int allWindowFlags = windowFlags | getWindow().getAttributes().flags;
+
+			// If status bar is to be hidden, then we must also set the translucent status bar flag
+			// or else devices with a notch will show a black bar where the status bar used to be.
+			boolean isHidingStatusBar = (allWindowFlags & WindowManager.LayoutParams.FLAG_FULLSCREEN) != 0;
+			isHidingStatusBar |= (uiFlags & View.SYSTEM_UI_FLAG_FULLSCREEN) != 0;
+			isHidingStatusBar |= (uiFlags & View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN) != 0;
+			if (isHidingStatusBar) {
+				windowFlags |= WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS;
+			}
+
+			// If navigation bar is to be hidden, then we must also set its translucent flag
+			// or else devices with a notch will show a black bar where the navigation bar used to be.
+			if ((uiFlags & View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) != 0) {
+				windowFlags |= WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION;
+			}
+		}
+
+		// Always allow screen cutouts/notches (such as the camera) to overlap window.
+		// Note: This won't overlap window's inner contents unless we call setFitsSystemWindows(true) down below,
+		//       which is only enabled when Titanium's "extendSafeArea" property is set true.
+		if (Build.VERSION.SDK_INT >= 28) {
+			WindowManager.LayoutParams params = getWindow().getAttributes();
+			params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+			getWindow().setAttributes(params);
+		}
+
+		// Add the flags provided via property 'windowFlags'.
+		if (windowFlags > 0) {
+			getWindow().addFlags(windowFlags);
+		}
+
+		// Remove translucent StatusBar/NavigationBar flags if window is not set up to extend beneath them.
+		// Not doing so will cause window to stretch beneath them anyways, but will fail to render there.
+		if (this.layout.getFitsSystemWindows() && !(this instanceof TiLaunchActivity)) {
+			int mask = WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS;
+			mask |= WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION;
+			if ((getWindow().getAttributes().flags & mask) != 0) {
+				String message = "You cannot use a translucent status bar or navigation bar unless you "
+								 + "set the window's '" + TiC.PROPERTY_EXTEND_SAFE_AREA + "' property to true.";
+				Log.w(TAG, message);
+				getWindow().clearFlags(mask);
+			}
+		}
+
+		// Update system UI flags with based on currently assigned translucency flags.
+		{
+			int systemUIFlags = 0;
+			int allWindowFlags = getWindow().getAttributes().flags;
+			if ((allWindowFlags & WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS) != 0) {
+				systemUIFlags |= View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN;
+			}
+			if ((allWindowFlags & WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION) != 0) {
+				systemUIFlags |= View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
+			}
+			if (systemUIFlags != 0) {
+				systemUIFlags |= getWindow().getDecorView().getSystemUiVisibility();
+				getWindow().getDecorView().setSystemUiVisibility(systemUIFlags);
 			}
 		}
 
@@ -445,11 +619,47 @@ public abstract class TiBaseActivity extends FragmentActivity
 			getWindow().setSoftInputMode(softInputMode);
 		}
 
-		boolean useActivityWindow = getIntentBoolean(TiC.INTENT_PROPERTY_USE_ACTIVITY_WINDOW, false);
-		if (useActivityWindow) {
-			int windowId = getIntentInt(TiC.INTENT_PROPERTY_WINDOW_ID, -1);
-			TiActivityWindows.windowCreated(this, windowId);
+		// If this activity was created by a Window/TabGroup proxy, then give it this activity's reference.
+		int windowId = getIntentInt(TiC.INTENT_PROPERTY_WINDOW_ID, TiActivityWindows.INVALID_WINDOW_ID);
+		if (windowId != TiActivityWindows.INVALID_WINDOW_ID) {
+			if (TiActivityWindows.hasWindow(windowId)) {
+				// Pass this activity to the proxy so that it can add views to it.
+				TiActivityWindows.windowCreated(this, windowId, savedInstanceState);
+			} else {
+				// This activity's assigned proxy was not found.
+				// This happens when proxy has been closed before activity was created. Destroy this activity.
+				finish();
+			}
 		}
+	}
+
+	// Record if user has set a content view manually from hyperloop code during require of app.js!
+	@Override
+	public void setContentView(View view)
+	{
+		overridenLayout = true;
+		super.setContentView(view);
+	}
+
+	@Override
+	public void setContentView(int layoutResID)
+	{
+		overridenLayout = true;
+		super.setContentView(layoutResID);
+	}
+
+	@Override
+	public void setContentView(View view, LayoutParams params)
+	{
+		overridenLayout = true;
+		super.setContentView(view, params);
+	}
+
+	@Override
+	protected void attachBaseContext(Context newBase)
+	{
+		baseContext = newBase;
+		super.attachBaseContext(TiLocaleManager.getLocalizedContext(newBase));
 	}
 
 	@Override
@@ -461,39 +671,42 @@ public abstract class TiBaseActivity extends FragmentActivity
 	protected void onCreate(Bundle savedInstanceState)
 	{
 		Log.d(TAG, "Activity " + this + " onCreate", Log.DEBUG_MODE);
+		this.inForeground = true;
+		this.launchIntent = getIntent();
 
-		inForeground = true;
 		TiApplication tiApp = getTiApp();
-
-		if (tiApp.isRestartPending()) {
-			super.onCreate(savedInstanceState);
-			if (!isFinishing()) {
-				finish();
-			}
-			return;
-		}
-
-		// If all the activities has been killed and the runtime has been disposed, we cannot recover one
-		// specific activity because the info of the top-most view proxy has been lost (TiActivityWindows.dispose()).
-		// In this case, we have to restart the app.
-		if (TiBaseActivity.isUnsupportedReLaunch(this, savedInstanceState)) {
-			Log.w(TAG, "Runtime has been disposed. Finishing.");
-			super.onCreate(savedInstanceState);
-			tiApp.scheduleRestart(250);
-			finish();
-			return;
-		}
-
 		TiApplication.addToActivityStack(this);
 
-		// create the activity proxy here so that it is accessible from the activity in all cases
-		activityProxy = new ActivityProxy(this);
-		
+		this.safeAreaMonitor = new TiActivitySafeAreaMonitor(this, tiApp);
 
-		// Increment the reference count so we correctly clean up when all of our activities have been destroyed
+		// Fetch the current UI mode flags. Used to determine light/dark theme being used.
+		Configuration config = getResources().getConfiguration();
+		if (config != null) {
+			this.lastUIModeFlags = config.uiMode;
+		}
+
+		// If activity is being recreated/restored, then copy last saved intent extras.
+		// This is needed to acquire the Ti.UI.Window proxy ID this activity should be assigned to.
+		if ((this.launchIntent != null) && (savedInstanceState != null)) {
+			Bundle oldExtras = savedInstanceState.getBundle("tiLaunchIntentExtras");
+			if (oldExtras != null) {
+				Bundle newExtras = this.launchIntent.getExtras();
+				if (newExtras != null) {
+					oldExtras.putAll(newExtras);
+				}
+				this.launchIntent.putExtras(oldExtras);
+			}
+		}
+
+		// Increment the Titanium activity reference count. To be decremented in onDestroy() method.
+		// Titanium's JavaScript runtime is created when we have at least 1 activity and destroyed when we have 0.
 		KrollRuntime.incrementActivityRefCount();
 
-		Intent intent = getIntent();
+		// We must create activity proxy after incrementing the activity reference count above.
+		// This is because proxy needs the JS runtime to exist when created.
+		this.activityProxy = new ActivityProxy(this);
+
+		Intent intent = this.launchIntent;
 		if (intent != null) {
 			if (intent.hasExtra(TiC.INTENT_PROPERTY_MESSENGER)) {
 				messenger = (Messenger) intent.getParcelableExtra(TiC.INTENT_PROPERTY_MESSENGER);
@@ -506,35 +719,123 @@ public abstract class TiBaseActivity extends FragmentActivity
 			}
 		}
 
-		// Doing this on every create in case the activity is externally created.
-		TiPlatformHelper.intializeDisplayMetrics(this);
-
+		// Create the root content layout, if not done already.
 		if (layout == null) {
 			layout = createLayout();
 		}
-		if (intent != null && intent.hasExtra(TiC.PROPERTY_KEEP_SCREEN_ON)) {
-			layout.setKeepScreenOn(intent.getBooleanExtra(TiC.PROPERTY_KEEP_SCREEN_ON, layout.getKeepScreenOn()));
+
+		// Extend window's view under screen insets, if requested.
+		boolean extendSafeArea = false;
+		if (intent != null) {
+			extendSafeArea = intent.getBooleanExtra(TiC.PROPERTY_EXTEND_SAFE_AREA, false);
+		}
+		layout.setFitsSystemWindows(!extendSafeArea);
+
+		// Enable/disable timer used to turn off the screen if idle.
+		if ((intent != null) && intent.hasExtra(TiC.PROPERTY_KEEP_SCREEN_ON)) {
+			boolean keepScreenOn = intent.getBooleanExtra(TiC.PROPERTY_KEEP_SCREEN_ON, layout.getKeepScreenOn());
+			layout.setKeepScreenOn(keepScreenOn);
 		}
 
-		super.onCreate(savedInstanceState);
-		
+		// Set the theme of the activity before calling super.onCreate().
+		// On 2.3 devices, it does not work if the theme is set after super.onCreate.
+		int theme = getIntentInt(TiC.PROPERTY_THEME, -1);
+		if (theme != -1) {
+			this.setTheme(theme);
+		}
+
+		// Set ActionBar into split mode must be done before the decor view has been created
+		// we need to do this before calling super.onCreate()
+		if (intent != null && intent.hasExtra(TiC.PROPERTY_SPLIT_ACTIONBAR)) {
+			getWindow().setUiOptions(ActivityInfo.UIOPTION_SPLIT_ACTION_BAR_WHEN_NARROW);
+		}
+
 		// we only want to set the current activity for good in the resume state but we need it right now.
-		// save off the existing current activity, set ourselves to be the new current activity temporarily 
+		// save off the existing current activity, set ourselves to be the new current activity temporarily
 		// so we don't run into problems when we give the proxy the event
 		Activity tempCurrentActivity = tiApp.getCurrentActivity();
 		tiApp.setCurrentActivity(this, this);
 
-		windowCreated();
+		// we need to set window features before calling onCreate
+		this.requestWindowFeature(Window.FEATURE_PROGRESS);
+		this.requestWindowFeature(Window.FEATURE_INDETERMINATE_PROGRESS);
+		this.requestWindowFeature(Window.FEATURE_ACTIVITY_TRANSITIONS);
+		super.onCreate(savedInstanceState);
 
-		if (activityProxy != null) {
-			// Fire the sync event with a timeout, so the main thread won't be blocked too long to get an ANR. (TIMOB-13253)
-			activityProxy.fireSyncEvent(TiC.EVENT_CREATE, null, 4000);
+		// Fetch app's current night mode setting used to override dark/light theme handling.
+		// In JavaScript, this can be changed via "Ti.UI.overrideUserInterfaceStyle" property.
+		this.lastNightMode = AppCompatDelegate.getDefaultNightMode();
+
+		// If activity is using Google's default ActionBar, then the below will return an ActionBar style handler
+		// intended to be called by onConfigurationChanged() which will resize its title bar and font.
+		// Note: We need to do this since we override "configChanges" in the "AndroidManifest.xml".
+		//       Default ActionBar height is typically 56dp for portrait and 48dp for landscape.
+		this.actionBarStyleHandler = TiActionBarStyleHandler.from(this);
+
+		// If Google's ActionBar is being used, then add it to the top inset height. (Exclude from safe-area.)
+		// Note: If a toolbar is passed to AppCompatActivity.setSupportActionBar(), then ActionBar is a wrapper
+		//       around that toolbar under our content view and is included in the safe-area.
+		this.safeAreaMonitor.setActionBarAddedAsInset(this.actionBarStyleHandler != null);
+
+		// Start handling safe-area inset changes.
+		this.safeAreaMonitor.setOnChangedListener(new TiActivitySafeAreaMonitor.OnChangedListener() {
+			@Override
+			public void onChanged(TiActivitySafeAreaMonitor monitor)
+			{
+				TiWindowProxy windowProxy = TiBaseActivity.this.window;
+				if (windowProxy != null) {
+					windowProxy.fireSafeAreaChangedEvent();
+				}
+			}
+
+			@Override
+			public void onKeyboardChanged(boolean isVisible, int width, int height, Insets keyboardSize)
+			{
+				if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || tiApp == null) return;
+
+				if (isVisible != keyboardVisible && tiApp.hasListener(TiC.EVENT_KEYBOARD_FRAME_CHANGED)) {
+					KrollDict kdX = new KrollDict();
+					kdX.put("left", keyboardSize.left);
+					kdX.put("right", keyboardSize.right);
+
+					KrollDict kdY = new KrollDict();
+					kdX.put("top", keyboardSize.top);
+					kdX.put("bottom", keyboardSize.bottom);
+
+					KrollDict kdFrame = new KrollDict();
+					kdFrame.put("x", kdX);
+					kdFrame.put("y", kdY);
+					kdFrame.put("height", keyboardSize.bottom);
+					kdFrame.put("width", width - keyboardSize.left - keyboardSize.right);
+
+					KrollDict kdAll = new KrollDict();
+					kdAll.put("keyboardFrame", kdFrame);
+					kdAll.put("animationDuration", 0);
+
+					tiApp.fireAppEvent(TiC.EVENT_KEYBOARD_FRAME_CHANGED, kdAll);
+					keyboardVisible = isVisible;
+				}
+			}
+		});
+		this.safeAreaMonitor.start();
+
+		try {
+			windowCreated(savedInstanceState);
+		} catch (Throwable t) {
+			TiApplication.handleInternalException(t);
 		}
 
 		// set the current activity back to what it was originally
 		tiApp.setCurrentActivity(this, tempCurrentActivity);
 
-		setContentView(layout);
+		// If user changed the layout during app.js load, keep that
+		if (!overridenLayout) {
+			super.setContentView(layout);
+		}
+
+		// Set the title of the activity after setContentView.
+		// On 2.3 devices, if the title is set before setContentView, the app will crash when a NoTitleBar theme is used.
+		updateTitle();
 
 		sendMessage(msgActivityCreatedId);
 		// for backwards compatibility
@@ -545,8 +846,65 @@ public abstract class TiBaseActivity extends FragmentActivity
 		originalOrientationMode = getRequestedOrientation();
 
 		if (window != null) {
-			window.onWindowActivityCreated();
+			try {
+				window.onWindowActivityCreated();
+			} catch (Throwable t) {
+				TiApplication.handleInternalException(t);
+			}
 		}
+		if (activityProxy != null) {
+			dispatchCallback(TiC.PROPERTY_ON_CREATE, null);
+		}
+		synchronized (lifecycleListeners.synchronizedList())
+		{
+			for (OnLifecycleEvent listener : lifecycleListeners.nonNull()) {
+				try {
+					TiLifecycle.fireLifecycleEvent(this, listener, savedInstanceState, TiLifecycle.LIFECYCLE_ON_CREATE);
+
+				} catch (Throwable t) {
+					Log.e(TAG, "Error dispatching lifecycle event: " + t.getMessage(), t);
+				}
+			}
+		}
+		setCustomActionBar();
+	}
+
+	private void setCustomActionBar()
+	{
+		if (activityProxy.hasProperty(TiC.PROPERTY_SUPPORT_TOOLBAR)) {
+			try {
+				this.setSupportActionBar(
+					((Toolbar) ((TiToolbarProxy) activityProxy.getProperty(TiC.PROPERTY_SUPPORT_TOOLBAR))
+						 .getToolbarInstance()));
+			} catch (RuntimeException e) {
+				String message
+					= "You cannot use a Toolbar as an ActionBar if the current theme has an ActionBar.\n"
+					+ "You must set 'windowActionBar' to false in your theme or use one of the following themes:\n"
+					+ "- Theme.Titanium.NoTitleBar\n"
+					+ "- Theme.Titanium.Fullscreen\n"
+					+ "- Theme.Titanium.Translucent.NoTitleBar\n"
+					+ "- Theme.Titanium.Translucent.Fullscreen";
+				Log.e(TAG, message);
+				TiApplication.terminateActivityStack();
+				finish();
+			}
+		}
+	}
+
+	/**
+	 * Gets the intent that originally created and launched this activity.
+	 * <p>
+	 * This intent is assigned within this activity's onCreate() method.
+	 * It is intended to be used to resume this activity via startActivity().
+	 * <p>
+	 * The returned intent will not change when onNewIntent() or setIntent() has been called. Those methods
+	 * are typically called when tapping a notification or when a custom URL scheme has been invoked.
+	 * The activity's getIntent() method will return the updated intent, if changed.
+	 * @return The intent used to create/launch this activity.
+	 */
+	public Intent getLaunchIntent()
+	{
+		return this.launchIntent;
 	}
 
 	public int getOriginalOrientationMode()
@@ -557,6 +915,11 @@ public abstract class TiBaseActivity extends FragmentActivity
 	public boolean isInForeground()
 	{
 		return inForeground;
+	}
+
+	public boolean isDestroyed()
+	{
+		return onDestroyFired;
 	}
 
 	protected void sendMessage(final int msgId)
@@ -616,17 +979,40 @@ public abstract class TiBaseActivity extends FragmentActivity
 		getSupportHelper().launchActivityForResult(intent, code, resultHandler);
 	}
 
+	/**
+	 * See TiActivitySupport.launchIntentSenderForResult for more details.
+	 */
+	public void launchIntentSenderForResult(IntentSender intent, int requestCode, Intent fillInIntent, int flagsMask,
+											int flagsValues, int extraFlags, Bundle options,
+											TiActivityResultHandler resultHandler)
+	{
+		getSupportHelper().launchIntentSenderForResult(intent, requestCode, fillInIntent, flagsMask, flagsValues,
+													   extraFlags, options, resultHandler);
+	}
+
 	@Override
 	protected void onActivityResult(int requestCode, int resultCode, Intent data)
 	{
 		super.onActivityResult(requestCode, resultCode, data);
+		synchronized (onActivityResultListeners.synchronizedList())
+		{
+			for (OnActivityResultEvent listener : onActivityResultListeners.nonNull()) {
+				try {
+					TiLifecycle.fireOnActivityResultEvent(this, listener, requestCode, resultCode, data);
+				} catch (Throwable t) {
+					Log.e(TAG, "Error dispatching onActivityResult event: " + t.getMessage(), t);
+				}
+			}
+		}
 		getSupportHelper().onActivityResult(requestCode, resultCode, data);
 	}
 
 	@Override
 	public void onBackPressed()
 	{
-		synchronized (interceptOnBackPressedListeners.synchronizedList()) {
+		// Notify all listener that the back button was pressed.
+		synchronized (interceptOnBackPressedListeners.synchronizedList())
+		{
 			for (interceptOnBackPressedEvent listener : interceptOnBackPressedListeners.nonNull()) {
 				try {
 					if (listener.interceptOnBackPressed()) {
@@ -639,137 +1025,136 @@ public abstract class TiBaseActivity extends FragmentActivity
 			}
 		}
 
-		TiWindowProxy topWindow = topWindowOnStack();
+		// Let the window proxy handle the back event first, if configured.
+		if (this.window != null) {
+			boolean hasBackEventHandler = false;
 
-		// Prevent default Android behavior for "back" press
-		// if the top window has a listener to handle the event.
-		if (topWindow != null && topWindow.hasListeners(TiC.EVENT_ANDROID_BACK)) {
-			topWindow.fireEvent(TiC.EVENT_ANDROID_BACK, null);
+			// Fire an "androidback" event if a listener exists.
+			if (this.window.hasListeners(TiC.EVENT_ANDROID_BACK)) {
+				this.window.fireEvent(TiC.EVENT_ANDROID_BACK, null);
+				hasBackEventHandler = true;
+			}
 
-		} else {
-			// If event is not handled by any listeners allow default behavior.
-			super.onBackPressed();
+			// Invoke the "onBack" property's callback if assigned.
+			if (this.window.hasProperty(TiC.PROPERTY_ON_BACK) && (this.activityProxy != null)) {
+				Object value = this.window.getProperty(TiC.PROPERTY_ON_BACK);
+				if (value instanceof KrollFunction) {
+					KrollFunction onBackCallback = (KrollFunction) value;
+					onBackCallback.callAsync(activityProxy.getKrollObject(), new Object[] {});
+					hasBackEventHandler = true;
+				}
+			}
+
+			// Do not allow the system to handle back press if window proxy has an event handler.
+			// In this case, the JS code must explicity close() or finish() the activity window itself.
+			if (hasBackEventHandler) {
+				return;
+			}
 		}
+
+		// Handle app exit ourselves since the above window proxy did not handle the back event.
+		boolean exitOnClose = (TiActivityWindows.getWindowCount() <= 1);
+		if (this.window != null) {
+			exitOnClose = TiConvert.toBoolean(this.window.getProperty(TiC.PROPERTY_EXIT_ON_CLOSE), exitOnClose);
+		}
+		if (exitOnClose) {
+			// Destroy all remaining activitities, including root splash activity.
+			Log.d(TAG, "onBackPressed: exit");
+			finishAffinity();
+			TiApplication.terminateActivityStack();
+			return;
+		} else if (TiActivityWindows.getWindowCount() <= 1) {
+			// Don't destroy this activity if it's the last one left. Home-out instead.
+			Log.d(TAG, "onBackPressed: suspend to background");
+			moveTaskToBack(true);
+			return;
+		}
+
+		// Allow the system to finish/destroy this activity.
+		super.onBackPressed();
 	}
 
 	@Override
-	public boolean dispatchKeyEvent(KeyEvent event) 
+	public boolean dispatchKeyEvent(KeyEvent event)
 	{
 		boolean handled = false;
-		
+
 		TiViewProxy window;
 		if (this.window != null) {
 			window = this.window;
 		} else {
 			window = this.view;
 		}
-		
+
 		if (window == null) {
 			return super.dispatchKeyEvent(event);
 		}
 
-		switch(event.getKeyCode()) {
-			case KeyEvent.KEYCODE_BACK : {
-				
+		switch (event.getKeyCode()) {
+			case KeyEvent.KEYCODE_BACK: {
+
 				if (event.getAction() == KeyEvent.ACTION_UP) {
-					String backEvent = "android:back";
 					KrollProxy proxy = null;
-					//android:back could be fired from a tabGroup window (activityProxy)
+					//androidback could be fired from a tabGroup window (activityProxy)
 					//or hw window (window).This event is added specifically to the activity
 					//proxy of a tab group in window.js
-					if (activityProxy.hasListeners(backEvent)) {
+					if (activityProxy.hasListeners(TiC.EVENT_ANDROID_BACK)) {
 						proxy = activityProxy;
-					} else if (window.hasListeners(backEvent)) {
+					} else if (window.hasListeners(TiC.EVENT_ANDROID_BACK)) {
 						proxy = window;
 					}
-					
+
 					if (proxy != null) {
-						proxy.fireEvent(backEvent, null);
+						proxy.fireEvent(TiC.EVENT_ANDROID_BACK, null);
 						handled = true;
 					}
-					
 				}
 				break;
 			}
-			case KeyEvent.KEYCODE_CAMERA : {
+			case KeyEvent.KEYCODE_CAMERA: {
 				if (window.hasListeners(TiC.EVENT_ANDROID_CAMERA)) {
 					if (event.getAction() == KeyEvent.ACTION_UP) {
 						window.fireEvent(TiC.EVENT_ANDROID_CAMERA, null);
 					}
 					handled = true;
 				}
-				// TODO: Deprecate old event
-				if (window.hasListeners("android:camera")) {
-					if (event.getAction() == KeyEvent.ACTION_UP) {
-						window.fireEvent("android:camera", null);
-					}
-					handled = true;
-				}
 
 				break;
 			}
-			case KeyEvent.KEYCODE_FOCUS : {
+			case KeyEvent.KEYCODE_FOCUS: {
 				if (window.hasListeners(TiC.EVENT_ANDROID_FOCUS)) {
 					if (event.getAction() == KeyEvent.ACTION_UP) {
 						window.fireEvent(TiC.EVENT_ANDROID_FOCUS, null);
 					}
 					handled = true;
 				}
-				// TODO: Deprecate old event
-				if (window.hasListeners("android:focus")) {
-					if (event.getAction() == KeyEvent.ACTION_UP) {
-						window.fireEvent("android:focus", null);
-					}
-					handled = true;
-				}
 
 				break;
 			}
-			case KeyEvent.KEYCODE_SEARCH : {
+			case KeyEvent.KEYCODE_SEARCH: {
 				if (window.hasListeners(TiC.EVENT_ANDROID_SEARCH)) {
 					if (event.getAction() == KeyEvent.ACTION_UP) {
 						window.fireEvent(TiC.EVENT_ANDROID_SEARCH, null);
 					}
 					handled = true;
 				}
-				// TODO: Deprecate old event
-				if (window.hasListeners("android:search")) {
-					if (event.getAction() == KeyEvent.ACTION_UP) {
-						window.fireEvent("android:search", null);
-					}
-					handled = true;
-				}
 
 				break;
 			}
-			case KeyEvent.KEYCODE_VOLUME_UP : {
+			case KeyEvent.KEYCODE_VOLUME_UP: {
 				if (window.hasListeners(TiC.EVENT_ANDROID_VOLUP)) {
 					if (event.getAction() == KeyEvent.ACTION_UP) {
 						window.fireEvent(TiC.EVENT_ANDROID_VOLUP, null);
 					}
 					handled = true;
 				}
-				// TODO: Deprecate old event
-				if (window.hasListeners("android:volup")) {
-					if (event.getAction() == KeyEvent.ACTION_UP) {
-						window.fireEvent("android:volup", null);
-					}
-					handled = true;
-				}
 
 				break;
 			}
-			case KeyEvent.KEYCODE_VOLUME_DOWN : {
+			case KeyEvent.KEYCODE_VOLUME_DOWN: {
 				if (window.hasListeners(TiC.EVENT_ANDROID_VOLDOWN)) {
 					if (event.getAction() == KeyEvent.ACTION_UP) {
 						window.fireEvent(TiC.EVENT_ANDROID_VOLDOWN, null);
-					}
-					handled = true;
-				}
-				// TODO: Deprecate old event
-				if (window.hasListeners("android:voldown")) {
-					if (event.getAction() == KeyEvent.ACTION_UP) {
-						window.fireEvent("android:voldown", null);
 					}
 					handled = true;
 				}
@@ -777,7 +1162,7 @@ public abstract class TiBaseActivity extends FragmentActivity
 				break;
 			}
 		}
-			
+
 		if (!handled) {
 			handled = super.dispatchKeyEvent(event);
 		}
@@ -788,19 +1173,28 @@ public abstract class TiBaseActivity extends FragmentActivity
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu)
 	{
-		// If targetSdkVersion is set to 11+, Android will invoke this function 
-		// to initialize the menu (since it's part of the action bar). Due
-		// to the fix for Android bug 2373, activityProxy won't be initialized b/c the
-		// activity is expected to restart, so we will ignore it.
 		if (activityProxy == null) {
 			return false;
+		}
+
+		boolean listenerExists = false;
+		synchronized (onCreateOptionsMenuListeners.synchronizedList())
+		{
+			for (OnCreateOptionsMenuEvent listener : onCreateOptionsMenuListeners.nonNull()) {
+				try {
+					listenerExists = true;
+					TiLifecycle.fireOnCreateOptionsMenuEvent(this, listener, menu);
+				} catch (Throwable t) {
+					Log.e(TAG, "Error dispatching OnCreateOptionsMenuEvent: " + t.getMessage(), t);
+				}
+			}
 		}
 
 		if (menuHelper == null) {
 			menuHelper = new TiMenuSupport(activityProxy);
 		}
 
-		return menuHelper.onCreateOptionsMenu(super.onCreateOptionsMenu(menu), menu);
+		return menuHelper.onCreateOptionsMenu(super.onCreateOptionsMenu(menu) || listenerExists, menu);
 	}
 
 	@Override
@@ -811,12 +1205,16 @@ public abstract class TiBaseActivity extends FragmentActivity
 				if (activityProxy != null) {
 					ActionBarProxy actionBarProxy = activityProxy.getActionBar();
 					if (actionBarProxy != null) {
-						KrollFunction onHomeIconItemSelected = (KrollFunction) actionBarProxy
-							.getProperty(TiC.PROPERTY_ON_HOME_ICON_ITEM_SELECTED);
+						KrollFunction onHomeIconItemSelected =
+							(KrollFunction) actionBarProxy.getProperty(TiC.PROPERTY_ON_HOME_ICON_ITEM_SELECTED);
 						KrollDict event = new KrollDict();
 						event.put(TiC.EVENT_PROPERTY_SOURCE, actionBarProxy);
 						if (onHomeIconItemSelected != null) {
 							onHomeIconItemSelected.call(activityProxy.getKrollObject(), new Object[] { event });
+
+							// handle NavigationWindow back press
+						} else if (window.getNavigationWindow() != null) {
+							onBackPressed();
 						}
 					}
 				}
@@ -829,72 +1227,187 @@ public abstract class TiBaseActivity extends FragmentActivity
 	@Override
 	public boolean onPrepareOptionsMenu(Menu menu)
 	{
-		return menuHelper.onPrepareOptionsMenu(super.onPrepareOptionsMenu(menu), menu);
-	}
-
-	public static void callOrientationChangedListener(Configuration newConfig) 
-	{
-		if (orientationChangedListener != null && previousOrientation != newConfig.orientation) {
-			previousOrientation = newConfig.orientation;
-			orientationChangedListener.onOrientationChanged (newConfig.orientation);
+		boolean listenerExists = false;
+		synchronized (onPrepareOptionsMenuListeners.synchronizedList())
+		{
+			for (OnPrepareOptionsMenuEvent listener : onPrepareOptionsMenuListeners.nonNull()) {
+				try {
+					listenerExists = true;
+					TiLifecycle.fireOnPrepareOptionsMenuEvent(this, listener, menu);
+				} catch (Throwable t) {
+					Log.e(TAG, "Error dispatching OnPrepareOptionsMenuEvent: " + t.getMessage(), t);
+				}
+			}
 		}
+		return menuHelper.onPrepareOptionsMenu(super.onPrepareOptionsMenu(menu) || listenerExists, menu);
 	}
 
 	@Override
-	public void onConfigurationChanged(Configuration newConfig)
+	public void onConfigurationChanged(@NonNull Configuration newConfig)
 	{
 		super.onConfigurationChanged(newConfig);
 
+		if (Build.VERSION.SDK_INT < 26) {
+			getResources().updateConfiguration(newConfig, getResources().getDisplayMetrics());
+		}
+
+		// Update ActionBar height and font size, if needed.
+		// Handler will only be null if activity was set up without a title bar.
+		if (this.actionBarStyleHandler != null) {
+			this.actionBarStyleHandler.onConfigurationChanged(newConfig);
+		}
+
+		// Notify all listener of this configuration change.
 		for (WeakReference<ConfigurationChangedListener> listener : configChangedListeners) {
 			if (listener.get() != null) {
 				listener.get().onConfigurationChanged(this, newConfig);
 			}
 		}
 
-		callOrientationChangedListener(newConfig);
+		// Recreate this activity if the OS has switched between light/dark theme.
+		final int NIGHT_MASK = Configuration.UI_MODE_NIGHT_MASK;
+		if ((newConfig.uiMode & NIGHT_MASK) != (this.lastUIModeFlags & NIGHT_MASK)) {
+			this.lastNightMode = AppCompatDelegate.getDefaultNightMode();
+			this.updateActivity();
+		}
+		this.lastUIModeFlags = newConfig.uiMode;
+	}
+
+	private void updateActivity()
+	{
+		/**
+		 * Set root activity to null to avoid duplication which causes the window
+		 * to lose all it's content when the activity is recreated.
+		 */
+		getTiApp().setRootActivity(null);
+		this.recreate();
 	}
 
 	@Override
-	protected void onNewIntent(Intent intent) 
+	protected void onNightModeChanged(int mode)
+	{
+		super.onNightModeChanged(mode);
+		applyNightMode();
+	}
+
+	public void applyNightMode()
+	{
+		int mode = AppCompatDelegate.getDefaultNightMode();
+		if (this.inForeground && (mode != this.lastNightMode)) {
+			this.lastNightMode = mode;
+			this.updateActivity();
+		}
+	}
+
+	@Override
+	protected void onNewIntent(Intent intent)
 	{
 		super.onNewIntent(intent);
-
 		Log.d(TAG, "Activity " + this + " onNewIntent", Log.DEBUG_MODE);
 
-		if (activityProxy != null) {
-			IntentProxy ip = new IntentProxy(intent);
-			KrollDict data = new KrollDict();
-			data.put(TiC.PROPERTY_INTENT, ip);
-			activityProxy.fireSyncEvent(TiC.EVENT_NEW_INTENT, data);
-			// TODO: Deprecate old event
-			activityProxy.fireSyncEvent("newIntent", data);
+		// Store the new intent.
+		setIntent(intent);
+
+		// Update proxy's "intent" property and fire a "newintent" event.
+		if (this.activityProxy != null) {
+			this.activityProxy.onNewIntent(intent);
 		}
 	}
 
 	public void addOnLifecycleEventListener(OnLifecycleEvent listener)
 	{
-		lifecycleListeners.add(new WeakReference<OnLifecycleEvent>(listener));
+		lifecycleListeners.add(new WeakReference<>(listener));
+	}
+
+	public void addOnInstanceStateEventListener(OnInstanceStateEvent listener)
+	{
+		instanceStateListeners.add(new WeakReference<>(listener));
 	}
 
 	public void addOnWindowFocusChangedEventListener(OnWindowFocusChangedEvent listener)
 	{
-		windowFocusChangedListeners.add(new WeakReference<OnWindowFocusChangedEvent>(listener));
+		windowFocusChangedListeners.add(new WeakReference<>(listener));
 	}
 
 	public void addInterceptOnBackPressedEventListener(interceptOnBackPressedEvent listener)
 	{
-		interceptOnBackPressedListeners.add(new WeakReference<interceptOnBackPressedEvent>(listener));
+		interceptOnBackPressedListeners.add(new WeakReference<>(listener));
+	}
+
+	public void addOnActivityResultListener(OnActivityResultEvent listener)
+	{
+		onActivityResultListeners.add(new WeakReference<>(listener));
+	}
+
+	public void addOnCreateOptionsMenuEventListener(OnCreateOptionsMenuEvent listener)
+	{
+		onCreateOptionsMenuListeners.add(new WeakReference<>(listener));
+	}
+
+	public void addOnPrepareOptionsMenuEventListener(OnPrepareOptionsMenuEvent listener)
+	{
+		onPrepareOptionsMenuListeners.add(new WeakReference<>(listener));
 	}
 
 	public void removeOnLifecycleEventListener(OnLifecycleEvent listener)
 	{
-		// TODO stub
+		lifecycleListeners.remove(listener);
+	}
+
+	public void removeOnInstanceStateEventListener(OnInstanceStateEvent listener)
+	{
+		instanceStateListeners.remove(listener);
+	}
+
+	public void removeOnWindowFocusChangedEventListener(OnWindowFocusChangedEvent listener)
+	{
+		windowFocusChangedListeners.remove(listener);
+	}
+
+	public void removeInterceptOnBackPressedEventListener(interceptOnBackPressedEvent listener)
+	{
+		interceptOnBackPressedListeners.remove(listener);
+	}
+
+	public void removeOnActivityResultListener(OnActivityResultEvent listener)
+	{
+		onActivityResultListeners.remove(listener);
+	}
+
+	public void removeOnCreateOptionsMenuEventListener(OnCreateOptionsMenuEvent listener)
+	{
+		onCreateOptionsMenuListeners.remove(listener);
+	}
+
+	public void removeOnPrepareOptionsMenuEventListener(OnPrepareOptionsMenuEvent listener)
+	{
+		onPrepareOptionsMenuListeners.remove(listener);
+	}
+
+	private void dispatchCallback(String propertyName, KrollDict data)
+	{
+		// Do not continue if activity proxy has been released.
+		if (this.activityProxy == null) {
+			return;
+		}
+
+		// Invoke callback assigned to given property name.
+		// Note: This must be done synchronously. Especially for "onDestroy" when exiting the app.
+		try {
+			if (data == null) {
+				data = new KrollDict();
+			}
+			data.put(TiC.EVENT_PROPERTY_SOURCE, this.activityProxy);
+			this.activityProxy.callPropertySync(propertyName, new Object[] { data });
+		} catch (Throwable ex) {
+			TiApplication.handleInternalException(ex);
+		}
 	}
 
 	private void releaseDialogs(boolean finish)
 	{
 		//clean up dialogs when activity is pausing or finishing
-		for (Iterator<DialogWrapper> iter = dialogs.iterator(); iter.hasNext(); ) {
+		for (Iterator<DialogWrapper> iter = dialogs.iterator(); iter.hasNext();) {
 			DialogWrapper p = iter.next();
 			Dialog dialog = p.getDialog();
 			boolean persistent = p.getPersistent();
@@ -902,7 +1415,11 @@ public abstract class TiBaseActivity extends FragmentActivity
 			//they are non-persistent
 			if (finish || !persistent) {
 				if (dialog != null && dialog.isShowing()) {
-					dialog.dismiss();
+					try {
+						dialog.dismiss();
+					} catch (Exception ex) {
+						Log.e(TAG, "Failed to hide dialog.", ex);
+					}
 				}
 				dialogs.remove(p);
 			}
@@ -912,7 +1429,8 @@ public abstract class TiBaseActivity extends FragmentActivity
 	@Override
 	public void onWindowFocusChanged(boolean hasFocus)
 	{
-		synchronized (windowFocusChangedListeners.synchronizedList()) {
+		synchronized (windowFocusChangedListeners.synchronizedList())
+		{
 			for (OnWindowFocusChangedEvent listener : windowFocusChangedListeners.nonNull()) {
 				try {
 					listener.onWindowFocusChanged(hasFocus);
@@ -930,28 +1448,21 @@ public abstract class TiBaseActivity extends FragmentActivity
 	 * When this activity pauses, this method sets the current activity to null, fires a javascript 'pause' event,
 	 * and if the activity is finishing, remove all dialogs associated with it.
 	 */
-	protected void onPause() 
+	protected void onPause()
 	{
 		inForeground = false;
+		dispatchCallback(TiC.PROPERTY_ON_PAUSE, null);
 		super.onPause();
 		isResumed = false;
 
 		Log.d(TAG, "Activity " + this + " onPause", Log.DEBUG_MODE);
 
-		TiApplication tiApp = getTiApp();
-		if (tiApp.isRestartPending()) {
-			releaseDialogs(true);
-			if (!isFinishing()) {
-				finish();
-			}
-			return;
+		if (this.window != null) {
+			this.window.onWindowFocusChange(false);
 		}
 
-		if (!windowStack.empty()) {
-			windowStack.peek().onWindowFocusChange(false);
-		}
-	
 		TiApplication.updateActivityTransitionState(true);
+		TiApplication tiApp = getTiApp();
 		tiApp.setCurrentActivity(this, null);
 		TiUIHelper.showSoftKeyboard(getWindow().getDecorView(), false);
 
@@ -962,11 +1473,8 @@ public abstract class TiBaseActivity extends FragmentActivity
 			releaseDialogs(false);
 		}
 
-		if (activityProxy != null) {
-			activityProxy.fireSyncEvent(TiC.EVENT_PAUSE, null);
-		}
-
-		synchronized (lifecycleListeners.synchronizedList()) {
+		synchronized (lifecycleListeners.synchronizedList())
+		{
 			for (OnLifecycleEvent listener : lifecycleListeners.nonNull()) {
 				try {
 					TiLifecycle.fireLifecycleEvent(this, listener, TiLifecycle.LIFECYCLE_ON_PAUSE);
@@ -975,11 +1483,6 @@ public abstract class TiBaseActivity extends FragmentActivity
 					Log.e(TAG, "Error dispatching lifecycle event: " + t.getMessage(), t);
 				}
 			}
-		}
-
-		// Checkpoint for ti.end event
-		if (tiApp != null) {
-			tiApp.postAnalyticsEvent(TiAnalyticsEventFactory.createAppEndEvent());
 		}
 	}
 
@@ -991,6 +1494,7 @@ public abstract class TiBaseActivity extends FragmentActivity
 	protected void onResume()
 	{
 		inForeground = true;
+		dispatchCallback(TiC.PROPERTY_ON_RESUME, null);
 		super.onResume();
 		if (isFinishing()) {
 			return;
@@ -998,27 +1502,16 @@ public abstract class TiBaseActivity extends FragmentActivity
 
 		Log.d(TAG, "Activity " + this + " onResume", Log.DEBUG_MODE);
 
-		TiApplication tiApp = getTiApp();
-		if (tiApp.isRestartPending()) {
-			if (!isFinishing()) {
-				finish();
-			}
-			return;
+		if (this.window != null) {
+			this.window.onWindowFocusChange(true);
 		}
 
-		if (!windowStack.empty()) {
-			windowStack.peek().onWindowFocusChange(true);
-		} 
-		
+		TiApplication tiApp = getTiApp();
 		tiApp.setCurrentActivity(this, this);
 		TiApplication.updateActivityTransitionState(false);
-		
-		if (activityProxy != null) {
-			// Fire the sync event with a timeout, so the main thread won't be blocked too long to get an ANR. (TIMOB-13253)
-			activityProxy.fireSyncEvent(TiC.EVENT_RESUME, null, 4000);
-		}
 
-		synchronized (lifecycleListeners.synchronizedList()) {
+		synchronized (lifecycleListeners.synchronizedList())
+		{
 			for (OnLifecycleEvent listener : lifecycleListeners.nonNull()) {
 				try {
 					TiLifecycle.fireLifecycleEvent(this, listener, TiLifecycle.LIFECYCLE_ON_RESUME);
@@ -1030,21 +1523,18 @@ public abstract class TiBaseActivity extends FragmentActivity
 		}
 
 		isResumed = true;
-
-		// Checkpoint for ti.start event
-		String deployType = tiApp.getAppProperties().getString("ti.deploytype", "unknown");
-		tiApp.postAnalyticsEvent(TiAnalyticsEventFactory.createAppStartEvent(tiApp, deployType));
 	}
 
 	@Override
 	/**
 	 * When this activity starts, this method updates the current activity to this if necessary and
-	 * fire javascript 'start' and 'focus' events. Focus events will only fire if 
+	 * fire javascript 'start' and 'focus' events. Focus events will only fire if
 	 * the activity is not a tab activity.
 	 */
 	protected void onStart()
 	{
 		inForeground = true;
+		dispatchCallback(TiC.PROPERTY_ON_START, null);
 		super.onStart();
 		if (isFinishing()) {
 			return;
@@ -1056,32 +1546,10 @@ public abstract class TiBaseActivity extends FragmentActivity
 
 		Log.d(TAG, "Activity " + this + " onStart", Log.DEBUG_MODE);
 
-		TiApplication tiApp = getTiApp();
-
-		if (tiApp.isRestartPending()) {
-			if (!isFinishing()) {
-				finish();
-			}
-			return;
-		}
-
 		updateTitle();
 
-		if (activityProxy != null) {
-			// we only want to set the current activity for good in the resume state but we need it right now.
-			// save off the existing current activity, set ourselves to be the new current activity temporarily 
-			// so we don't run into problems when we give the proxy the event
-			Activity tempCurrentActivity = tiApp.getCurrentActivity();
-			tiApp.setCurrentActivity(this, this);
-
-			// Fire the sync event with a timeout, so the main thread won't be blocked too long to get an ANR. (TIMOB-13253)
-			activityProxy.fireSyncEvent(TiC.EVENT_START, null, 4000);
-
-			// set the current activity back to what it was originally
-			tiApp.setCurrentActivity(this, tempCurrentActivity);
-		}
-
-		synchronized (lifecycleListeners.synchronizedList()) {
+		synchronized (lifecycleListeners.synchronizedList())
+		{
 			for (OnLifecycleEvent listener : lifecycleListeners.nonNull()) {
 				try {
 					TiLifecycle.fireLifecycleEvent(this, listener, TiLifecycle.LIFECYCLE_ON_START);
@@ -1091,9 +1559,8 @@ public abstract class TiBaseActivity extends FragmentActivity
 				}
 			}
 		}
-		// store current configuration orientation
-		// This fixed bug with double orientation chnage firing when activity starts in landscape 
-		previousOrientation = getResources().getConfiguration().orientation;
+
+		applyNightMode();
 	}
 
 	@Override
@@ -1104,22 +1571,13 @@ public abstract class TiBaseActivity extends FragmentActivity
 	protected void onStop()
 	{
 		inForeground = false;
+		dispatchCallback(TiC.PROPERTY_ON_STOP, null);
 		super.onStop();
 
 		Log.d(TAG, "Activity " + this + " onStop", Log.DEBUG_MODE);
 
-		if (getTiApp().isRestartPending()) {
-			if (!isFinishing()) {
-				finish();
-			}
-			return;
-		}
-
-		if (activityProxy != null) {
-			activityProxy.fireSyncEvent(TiC.EVENT_STOP, null);
-		}
-
-		synchronized (lifecycleListeners.synchronizedList()) {
+		synchronized (lifecycleListeners.synchronizedList())
+		{
 			for (OnLifecycleEvent listener : lifecycleListeners.nonNull()) {
 				try {
 					TiLifecycle.fireLifecycleEvent(this, listener, TiLifecycle.LIFECYCLE_ON_STOP);
@@ -1129,90 +1587,76 @@ public abstract class TiBaseActivity extends FragmentActivity
 				}
 			}
 		}
-		KrollRuntime.suggestGC();
 	}
 
 	@Override
 	/**
-	 * When this activity restarts, this method updates the current activity to this and fires javascript 'restart'
-	 * event.
+	 * Called when the activity was moved from the background to the foreground.
+	 * Will be called after onStop() and before onStart().
 	 */
 	protected void onRestart()
 	{
 		inForeground = true;
+		dispatchCallback(TiC.PROPERTY_ON_RESTART, null);
 		super.onRestart();
 
 		Log.d(TAG, "Activity " + this + " onRestart", Log.DEBUG_MODE);
-		
-		TiApplication tiApp = getTiApp();
-		if (tiApp.isRestartPending()) {
-			if (!isFinishing()) {
-				finish();
-			}
 
-			return;
-		}
-
-		if (activityProxy != null) {
-			// we only want to set the current activity for good in the resume state but we need it right now.
-			// save off the existing current activity, set ourselves to be the new current activity temporarily 
-			// so we don't run into problems when we give the proxy the event
-			Activity tempCurrentActivity = tiApp.getCurrentActivity();
-			tiApp.setCurrentActivity(this, this);
-
-			activityProxy.fireSyncEvent(TiC.EVENT_RESTART, null);
-
-			// set the current activity back to what it was originally
-			tiApp.setCurrentActivity(this, tempCurrentActivity);
-		}
+		applyNightMode();
 	}
 
 	@Override
 	/**
-	 * When the activity is about to go into the background as a result of user choice, this method fires the 
+	 * When a key, touch, or trackball event is dispatched to the activity, this method fires the
+	 * javascript 'userinteraction' event.
+	 */
+	public void onUserInteraction()
+	{
+		TiApplication.getInstance().fireAppEvent(TiC.EVENT_USER_INTERACTION, null);
+
+		super.onUserInteraction();
+	}
+
+	@Override
+	/**
+	 * When the activity is about to go into the background as a result of user choice, this method fires the
 	 * javascript 'userleavehint' event.
 	 */
 	protected void onUserLeaveHint()
 	{
 		Log.d(TAG, "Activity " + this + " onUserLeaveHint", Log.DEBUG_MODE);
 
-		if (getTiApp().isRestartPending()) {
-			if (!isFinishing()) {
-				finish();
-			}
-			return;
-		}
-
 		if (activityProxy != null) {
-			activityProxy.fireSyncEvent(TiC.EVENT_USER_LEAVE_HINT, null);
+			activityProxy.fireEvent(TiC.EVENT_USER_LEAVE_HINT, null);
 		}
 
 		super.onUserLeaveHint();
 	}
-	
+
 	@Override
 	/**
 	 * When this activity is destroyed, this method removes it from the activity stack, performs
-	 * clean up, and fires javascript 'destroy' event. 
+	 * clean up, and fires javascript 'destroy' event.
 	 */
 	protected void onDestroy()
 	{
 		Log.d(TAG, "Activity " + this + " onDestroy", Log.DEBUG_MODE);
+		dispatchCallback(TiC.PROPERTY_ON_DESTROY, null);
 
-		inForeground = false;
-		TiApplication tiApp = getTiApp();
-		//Clean up dialogs when activity is destroyed. 
+		// Flag that this activity is no longer in the foreground.
+		this.inForeground = false;
+
+		// Release the dialogs owned by this activity.
 		releaseDialogs(true);
 
-		if (tiApp.isRestartPending()) {
-			super.onDestroy();
-			if (!isFinishing()) {
-				finish();
-			}
-			return;
+		// Stop listening for safe-area inset changes.
+		if (this.safeAreaMonitor != null) {
+			this.safeAreaMonitor.stop();
 		}
 
-		synchronized (lifecycleListeners.synchronizedList()) {
+		// Notify listeners that this activity is being destroyed.
+		synchronized (lifecycleListeners.synchronizedList())
+		{
 			for (OnLifecycleEvent listener : lifecycleListeners.nonNull()) {
 				try {
 					TiLifecycle.fireLifecycleEvent(this, listener, TiLifecycle.LIFECYCLE_ON_DESTROY);
@@ -1225,61 +1669,91 @@ public abstract class TiBaseActivity extends FragmentActivity
 
 		super.onDestroy();
 
+		// "isFinishing" will return true if the Android OS won't restore this destroyed activity later.
+		// This happens when finish() method is called of end-user back navigates out of the activity.
+		// Note: Will return false if system intends to restore the activity later, which happens if
+		//       system setting "Don't keep activities" is enabled or "Background process limit" was exceeded.
 		boolean isFinishing = isFinishing();
 
-		// If the activity is finishing, remove the windowId and supportHelperId so the window and supportHelper can be released.
-		// If the activity is forced to destroy by Android OS, keep the windowId and supportHelperId so the activity can be recovered.
+		// If activities is finished (not coming back), then stop tracking the activity and remove from collection.
 		if (isFinishing) {
-			int windowId = getIntentInt(TiC.INTENT_PROPERTY_WINDOW_ID, -1);
-			TiActivityWindows.removeWindow(windowId);
+			if (this.launchIntent != null) {
+				int windowId =
+					this.launchIntent.getIntExtra(TiC.INTENT_PROPERTY_WINDOW_ID, TiActivityWindows.INVALID_WINDOW_ID);
+				TiActivityWindows.removeWindow(windowId);
+			}
 			TiActivitySupportHelpers.removeSupportHelper(supportHelperId);
 		}
 
+		// Invoke the Titanium activity proxy's "onDestroy" callback.
 		fireOnDestroy();
 
+		// Release proxy references and resources.
 		if (layout instanceof TiCompositeLayout) {
-			Log.e(TAG, "Layout cleanup.", Log.DEBUG_MODE);
+			Log.d(TAG, "Layout cleanup.", Log.DEBUG_MODE);
 			((TiCompositeLayout) layout).removeAllViews();
 		}
 		layout = null;
-
-		//LW windows
-		if (window == null && view != null) {
-			view.releaseViews();
+		if (view != null) {
+			if (window != null) {
+				view.releaseViews();
+			} else {
+				view.release();
+			}
 			view = null;
 		}
-
 		if (window != null) {
 			window.closeFromActivity(isFinishing);
 			window = null;
 		}
-
 		if (menuHelper != null) {
 			menuHelper.destroy();
 			menuHelper = null;
 		}
-
 		if (activityProxy != null) {
 			activityProxy.release();
 			activityProxy = null;
 		}
 
-		// Don't dispose the runtime if the activity is forced to destroy by Android,
-		// so we can recover the activity later.
+		if (baseContext != null) {
+			baseContext = null;
+		}
+
+		// Remove this activity from the app-wide Titanium UI stack.
+		TiApplication.removeFromActivityStack(this);
+
+		// Decrement the activity count. Once the counts hits zero, we'll terminate the JavaScript runtime.
+		// Note: If "isFinishing" is false, then the Android OS is temporarily destroying this activity
+		//       and intends to restore it later. We don't want to terminate the JS runtime in this case.
+		//       This happens when "Don't keep activities" is enabled or "Background process limit" is exceeded.
 		KrollRuntime.decrementActivityRefCount(isFinishing);
-		KrollRuntime.suggestGC();
 	}
 
 	@Override
 	protected void onSaveInstanceState(Bundle outState)
 	{
-		super.onSaveInstanceState(outState);
-
-		// If the activity is forced to destroy by Android, save the supportHelperId so
-		// we can get it back when the activity is recovered.
-		if (!isFinishing() && supportHelper != null) {
-			outState.putInt("supportHelperId", supportHelperId);
+		// If activity is being temporarily destroyed, then save settings to be restored when activity is recreated.
+		if (!isFinishing()) {
+			if (supportHelper != null) {
+				outState.putInt("supportHelperId", supportHelperId);
+			}
+			if (this.launchIntent != null) {
+				outState.putBundle("tiLaunchIntentExtras", this.launchIntent.getExtras());
+			}
 		}
+
+		synchronized (instanceStateListeners.synchronizedList())
+		{
+			for (OnInstanceStateEvent listener : instanceStateListeners.nonNull()) {
+				try {
+					TiLifecycle.fireInstanceStateEvent(outState, listener, TiLifecycle.ON_SAVE_INSTANCE_STATE);
+				} catch (Throwable t) {
+					Log.e(TAG, "Error dispatching OnInstanceStateEvent: " + t.getMessage(), t);
+				}
+			}
+		}
+
+		super.onSaveInstanceState(outState);
 	}
 
 	@Override
@@ -1294,6 +1768,17 @@ public abstract class TiBaseActivity extends FragmentActivity
 				Log.e(TAG, "Unable to retrieve the activity support helper.");
 			}
 		}
+		synchronized (instanceStateListeners.synchronizedList())
+		{
+			for (OnInstanceStateEvent listener : instanceStateListeners.nonNull()) {
+				try {
+					TiLifecycle.fireInstanceStateEvent(savedInstanceState, listener,
+													   TiLifecycle.ON_RESTORE_INSTANCE_STATE);
+				} catch (Throwable t) {
+					Log.e(TAG, "Error dispatching OnInstanceStateEvent: " + t.getMessage(), t);
+				}
+			}
+		}
 	}
 
 	// called in order to ensure that the onDestroy call is only acted upon once.
@@ -1301,96 +1786,175 @@ public abstract class TiBaseActivity extends FragmentActivity
 	protected void fireOnDestroy()
 	{
 		if (!onDestroyFired) {
-			if (activityProxy != null) {
-				activityProxy.fireSyncEvent(TiC.EVENT_DESTROY, null);
-			}
 			onDestroyFired = true;
 		}
 	}
 
-	protected boolean shouldFinishRootActivity()
+	private boolean shouldFinishRootActivity()
 	{
-		return getIntentBoolean(TiC.INTENT_PROPERTY_FINISH_ROOT, false);
+		// Do not finish root activity if disabled globally. (Typically done when restarting LiveView.)
+		if (TiBaseActivity.canFinishRoot == false) {
+			return false;
+		}
+
+		// This method only applies to "Ti.UI.Window" based activities.
+		// If this is the root activity, then let it do its default finish handling.
+		if (this instanceof TiRootActivity) {
+			return false;
+		}
+
+		// Determine if this activity's "Ti.UI.Window" reference is still in the global collection.
+		// - Will not be in the collection if its close() method was called.
+		// - Will be in collection when pressing Back button or finish() was called natively.
+		boolean isTiWindowOpen = false;
+		if (this.launchIntent != null) {
+			int windowId =
+				this.launchIntent.getIntExtra(TiC.INTENT_PROPERTY_WINDOW_ID, TiActivityWindows.INVALID_WINDOW_ID);
+			if (windowId != TiActivityWindows.INVALID_WINDOW_ID) {
+				isTiWindowOpen = TiActivityWindows.hasWindow(windowId);
+			}
+		}
+
+		// If this is the last "Ti.UI.Window" activity, then exit by default unless "exitOnClose" property was set.
+		boolean exitOnClose = (TiActivityWindows.getWindowCount() <= (isTiWindowOpen ? 1 : 0));
+		if ((this.window != null) && this.window.hasProperty(TiC.PROPERTY_EXIT_ON_CLOSE)) {
+			exitOnClose = TiConvert.toBoolean(this.window.getProperty(TiC.PROPERTY_EXIT_ON_CLOSE), exitOnClose);
+		}
+		return exitOnClose;
+	}
+
+	@Override
+	public void finishAfterTransition()
+	{
+		// Remove this activity from the app-wide Titanium UI stack.
+		TiApplication.removeFromActivityStack(this);
+
+		// Finish this activity after its exit transition, if supported.
+		super.finishAfterTransition();
 	}
 
 	@Override
 	public void finish()
 	{
+		// Do not continue if already called.
+		if (isFinishing()) {
+			return;
+		}
+
+		// If the root activity that is hosting the JS runtime is being closed,
+		// then close all Titanium child activities too.
+		boolean isTiRootActivity = (this instanceof TiRootActivity);
+		if (isTiRootActivity && (getTiApp().getRootActivity() == this)) {
+			TiApplication.terminateActivityStack();
+		}
+
+		// Remove this activity from the app-wide Titanium UI stack.
+		TiApplication.removeFromActivityStack(this);
+
+		// Close this activity.
 		super.finish();
 
-		if (shouldFinishRootActivity()) {
-			TiApplication app = getTiApp();
-			if (app != null) {
-				TiRootActivity rootActivity = app.getRootActivity();
-				if (rootActivity != null && !(rootActivity.equals(this)) && !rootActivity.isFinishing()) {
-					rootActivity.finish();
-				} else if (rootActivity == null && !app.isRestartPending()) {
-					// When the root activity has been killed and garbage collected and the app is not scheduled to restart,
-					// we need to force finish the root activity while this activity has an intent to finish root.
-					// This happens when the "Don't keep activities" option is enabled and the user stays in some activity
-					// (eg. heavyweight window, tabgroup) other than the root activity for a while and then he wants to back
-					// out the app.
-					app.setForceFinishRootActivity(true);
-				}
+		// If this is the 1st child activity below root activity, then close root activity too if configured.
+		// Note: Setting Ti.UI.Window property "exitOnClose" to false will prevent this.
+		if (!isTiRootActivity && shouldFinishRootActivity()) {
+			TiRootActivity rootActivity = getTiApp().getRootActivity();
+			if (rootActivity != null) {
+				// Destroy the root activity. This in turn will destroy its child activities.
+				rootActivity.finish();
+			} else if (TiRootActivity.isScriptRunning()) {
+				// Root activity not found, but its script is still running.
+				// Can happen when "Don't keep activities" is enabled. Our only option is to terminate the task.
+				finishAffinity();
+				TiApplication.terminateActivityStack();
 			}
 		}
 	}
 
-	// These activityOnXxxx are all used by TiLaunchActivity when
-	// the android bug 2373 is detected and the app is being re-started.
-	// By calling these from inside its on onXxxx handlers, TiLaunchActivity
-	// can avoid calling super.onXxxx (super being TiBaseActivity), which would
-	// result in a bunch of Titanium-specific code running when we don't need it
-	// since we are restarting the app as fast as possible. Calling these methods
-	// allows TiLaunchActivity to fulfill the requirement that the Android built-in
-	// Activity's onXxxx must be called. (Think of these as something like super.super.onXxxx
-	// from inside TiLaunchActivity.)
-	protected void activityOnPause()
-	{
-		super.onPause();
-	}
-	protected void activityOnRestart()
-	{
-		super.onRestart();
-	}
-	protected void activityOnResume()
-	{
-		super.onResume();
-	}
-	protected void activityOnStop()
-	{
-		super.onStop();
-	}
-	protected void activityOnStart()
-	{
-		super.onStart();
-	}
-	protected void activityOnDestroy()
-	{
-		super.onDestroy();
-	}
-
-	public void activityOnCreate(Bundle savedInstanceState)
+	/**
+	 * Internal method used to call Google's Activity.onCreate() method, bypassing this class' onCreate().
+	 * Only intended to be called by a 2nd instance of TiRootActivity class. (Only 1 instance is allowed at a time.)
+	 * @param savedInstanceState Bundle to be passed to the Activity.onCreate() method.
+	 */
+	void activityOnCreate(Bundle savedInstanceState)
 	{
 		super.onCreate(savedInstanceState);
 	}
 
 	/**
-	 * Called by the onCreate methods of TiBaseActivity to determine if an unsupported application
-	 * re-launch appears to be occurring.
-	 * @param activity The Activity getting the onCreate
-	 * @param savedInstanceState The argument passed to the onCreate. A non-null value is a "tell"
-	 * that the system is re-starting a killed application.
+	 * Internal method used to call Google's Activity.onDestroy() method, bypassing this class' onDestroy().
+	 * Only intended to be called by a 2nd instance of TiRootActivity class. (Only 1 instance is allowed at a time.)
 	 */
-	public static boolean isUnsupportedReLaunch(Activity activity, Bundle savedInstanceState)
+	void activityOnDestroy()
 	{
-		// If all the activities has been killed and the runtime has been disposed, we have to relaunch
-		// the app.
-		if (KrollRuntime.getInstance().getRuntimeState() == KrollRuntime.State.DISPOSED &&
-				savedInstanceState != null && !(activity instanceof TiLaunchActivity)) {
-			return true;
+		super.onDestroy();
+	}
+
+	public boolean hasSustainMode()
+	{
+		PowerManager manager = (PowerManager) getSystemService(Context.POWER_SERVICE);
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+			return manager.isSustainedPerformanceModeSupported();
 		}
 		return false;
 	}
-}
 
+	public void setSustainMode(boolean sustainMode)
+	{
+		if (hasSustainMode() && this.sustainMode != sustainMode) {
+			getWindow().setSustainedPerformanceMode(sustainMode);
+			this.sustainMode = sustainMode;
+		} else {
+			Log.w(TAG, "sustainedPerformanceMode is not supported on this device");
+		}
+	}
+
+	/**
+	 * Gets the safe area in pixels, relative to the root decor view. This is the region between
+	 * the top/bottom/left/right insets that overlap the view's content such as a translucent
+	 * status bar, translucent navigation bar, or screen notches.
+	 * @return
+	 * Returns the safe area region in pixels relative to the root decor view.
+	 * <p>
+	 * Returns null if activity's root view is not available, such as after it's been destroyed.
+	 */
+	public Rect getSafeAreaRect()
+	{
+		if (this.safeAreaMonitor == null) {
+			return null;
+		}
+		return this.safeAreaMonitor.getSafeAreaRect();
+	}
+
+	/**
+	 * Adds an object used to provide custom insets to be excluded from the safe-area returned
+	 * by this activity's getSafeAreaRect() method.
+	 * <p>
+	 * For example, Titanium's TabGroup will use this method to add its tab bar as a custom inset.
+	 * <p>
+	 * The provider's insets are expected to be relative to this activity's root decor view.
+	 * @param provider Object used to provide custom insets. If given null, then this method will no-op.
+	 */
+	public void addCustomInsetsProvider(TiInsetsProvider provider)
+	{
+		if (this.safeAreaMonitor != null) {
+			this.safeAreaMonitor.addInsetsProvider(provider);
+		}
+	}
+
+	/**
+	 * Removes the provider added via the addCustomInsetsProvider() method by reference.
+	 * Once removed, the provider's insets will no longer apply to this activity's safe-area.
+	 * @param provider The insets provider to be removed by reference. Can be null.
+	 */
+	public void removeCustomInsetsProvider(TiInsetsProvider provider)
+	{
+		if (this.safeAreaMonitor != null) {
+			this.safeAreaMonitor.removeInsetsProvider(provider);
+		}
+	}
+
+	public Context getInitialBaseContext()
+	{
+		return baseContext;
+	}
+}

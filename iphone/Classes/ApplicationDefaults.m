@@ -1,22 +1,22 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2011 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
 
 #import "ApplicationDefaults.h"
 
-
 @implementation ApplicationDefaults
 
-+(NSMutableDictionary*)copyDefaults
++ (NSMutableDictionary *)copyDefaults
 {
-    return nil;
+  return nil;
 }
 
-+(NSDictionary*)launchUrl {
-    return nil;
++ (NSDictionary *)launchUrl
+{
+  return nil;
 }
 
 @end

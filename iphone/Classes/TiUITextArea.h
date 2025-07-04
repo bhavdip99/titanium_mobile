@@ -1,6 +1,6 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2010 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
@@ -9,23 +9,31 @@
 #import "TiUITextWidget.h"
 
 @interface TiUITextViewImpl : UITextView {
-@private
-    TiUIView * touchHandler;
-    UIView * touchedContentView;
+  @private
+  BOOL enableCopy;
+  TiUIView *touchHandler;
+  UIView *touchedContentView;
 }
--(void)setTouchHandler:(TiUIView*)handler;
+
+@property (nonatomic, readwrite, assign) BOOL enableCopy;
+
+- (void)setTouchHandler:(TiUIView *)handler;
+- (NSComparisonResult)comparePosition:(UITextPosition *)position toPosition:(UITextPosition *)other;
+
 @end
 
-@interface TiUITextArea : TiUITextWidget <UITextViewDelegate>
-{
-@private
-	BOOL becameResponder;
-    BOOL returnActive;
-    BOOL handleLinks;
-    NSRange lastSelectedRange;
+@interface TiUITextArea : TiUITextWidget <UITextViewDelegate> {
+  @private
+  BOOL returnActive;
+  BOOL handleLinks;
+  NSRange lastSelectedRange;
 }
 
-@property(nonatomic,readonly) BOOL becameResponder;
+- (void)setShowUndoRedoActions:(id)value;
+
+- (UIView<UITextInputTraits> *)textWidgetView;
+- (void)checkLinkForTouch:(UITouch *)touch;
+
 @end
 
 #endif

@@ -1,43 +1,46 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2012 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
 package org.appcelerator.kroll;
 
+import android.app.Activity;
 import org.appcelerator.kroll.common.CurrentActivityListener;
 import org.appcelerator.kroll.common.TiDeployData;
-import org.appcelerator.kroll.util.TiTempFileHelper;
-
-import android.app.Activity;
 
 /**
  * An interface for things Kroll needs from the application instance
  */
-public interface KrollApplication
-{
-	public int getThreadStackSize();
+public interface KrollApplication {
+	boolean DEFAULT_RUN_ON_MAIN_THREAD = false;
 
-	public Activity getCurrentActivity();
+	int getThreadStackSize();
 
-	public void waitForCurrentActivity(CurrentActivityListener l);
+	Activity getCurrentActivity();
 
-	public TiTempFileHelper getTempFileHelper();
+	void waitForCurrentActivity(CurrentActivityListener l);
 
-	public TiDeployData getDeployData();
+	TiDeployData getDeployData();
 
-	public boolean isFastDevMode();
+	boolean isFastDevMode();
 
-	public String getAppGUID();
+	String getAppGUID();
 
-	public boolean isDebuggerEnabled();
+	boolean isDebuggerEnabled();
 
-	public void dispose();
-	
-	public String getDeployType();
+	boolean runOnMainThread();
 
-	public String getDefaultUnit();
+	void dispose();
 
-	public void cancelTimers();
+	String getDeployType();
+
+	String getDefaultUnit();
+
+	String getSDKVersion();
+
+	void cancelTimers();
+
+	void loadAppProperties();
 }

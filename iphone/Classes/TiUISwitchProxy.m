@@ -1,37 +1,50 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2010 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
 #ifdef USE_TI_UISWITCH
 
 #import "TiUISwitchProxy.h"
+#import "TiUISwitch.h"
 
 @implementation TiUISwitchProxy
 
--(UIViewAutoresizing)verifyAutoresizing:(UIViewAutoresizing)suggestedResizing
+- (void)_initWithProperties:(NSDictionary *)properties
 {
-	return suggestedResizing & ~(UIViewAutoresizingFlexibleHeight|UIViewAutoresizingFlexibleWidth);
+  [self initializeProperty:@"enabled" defaultValue:NUMBOOL(YES)];
+  [super _initWithProperties:properties];
 }
 
--(NSString*)apiName
+- (UIViewAutoresizing)verifyAutoresizing:(UIViewAutoresizing)suggestedResizing
 {
-    return @"Ti.UI.Switch";
+  return suggestedResizing & ~(UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth);
+}
+
+- (NSString *)apiName
+{
+  return @"Ti.UI.Switch";
+}
+
+- (NSNumber *)value
+{
+  return [(TiUISwitch *)[self view] value];
 }
 
 USE_VIEW_FOR_VERIFY_HEIGHT
 USE_VIEW_FOR_VERIFY_WIDTH
 
--(TiDimension)defaultAutoWidthBehavior:(id)unused
+#ifndef TI_USE_AUTOLAYOUT
+- (TiDimension)defaultAutoWidthBehavior:(id)unused
 {
-    return TiDimensionAutoSize;
+  return TiDimensionAutoSize;
 }
--(TiDimension)defaultAutoHeightBehavior:(id)unused
+- (TiDimension)defaultAutoHeightBehavior:(id)unused
 {
-    return TiDimensionAutoSize;
+  return TiDimensionAutoSize;
 }
-
+#endif
 
 @end
 

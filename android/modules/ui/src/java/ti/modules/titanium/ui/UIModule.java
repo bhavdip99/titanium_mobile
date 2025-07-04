@@ -1,196 +1,530 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2012 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
 package ti.modules.titanium.ui;
 
+import org.appcelerator.kroll.KrollDict;
 import org.appcelerator.kroll.KrollModule;
 import org.appcelerator.kroll.KrollProxy;
+import org.appcelerator.kroll.KrollRuntime;
 import org.appcelerator.kroll.annotations.Kroll;
 import org.appcelerator.kroll.common.Log;
 import org.appcelerator.titanium.TiApplication;
 import org.appcelerator.titanium.TiBaseActivity;
 import org.appcelerator.titanium.TiC;
-import org.appcelerator.titanium.TiContext;
 import org.appcelerator.titanium.TiDimension;
 import org.appcelerator.titanium.TiRootActivity;
-import org.appcelerator.titanium.proxy.TiWindowProxy;
+import org.appcelerator.titanium.util.TiAnimationCurve;
 import org.appcelerator.titanium.util.TiColorHelper;
-import org.appcelerator.titanium.util.TiOrientationHelper;
+import org.appcelerator.titanium.util.TiDeviceOrientation;
 import org.appcelerator.titanium.util.TiUIHelper;
 
 import android.app.Activity;
+import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
-import android.os.Handler;
-import android.os.Message;
+import android.graphics.fonts.Font;
+import android.graphics.fonts.SystemFonts;
+import android.os.Build;
+import android.text.InputType;
 import android.text.util.Linkify;
+import android.view.DisplayCutout;
 import android.view.View;
+import android.view.Window;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatDelegate;
+
+import java.io.File;
+import java.util.List;
+import java.util.Set;
+
 @Kroll.module
-@Kroll.dynamicApis(properties = {
-	"currentWindow"
-})
-public class UIModule extends KrollModule implements Handler.Callback
+public class UIModule extends KrollModule implements TiApplication.ConfigurationChangedListener
 {
 	private static final String TAG = "TiUIModule";
+	private int lastEmittedStyle;
 
-	@Kroll.constant public static final int RETURNKEY_GO = 0;
-	@Kroll.constant public static final int RETURNKEY_GOOGLE = 1;
-	@Kroll.constant public static final int RETURNKEY_JOIN = 2;
-	@Kroll.constant public static final int RETURNKEY_NEXT = 3;
-	@Kroll.constant public static final int RETURNKEY_ROUTE = 4;
-	@Kroll.constant public static final int RETURNKEY_SEARCH = 5;
-	@Kroll.constant public static final int RETURNKEY_YAHOO = 6;
-	@Kroll.constant public static final int RETURNKEY_DONE = 7;
-	@Kroll.constant public static final int RETURNKEY_EMERGENCY_CALL = 8;
-	@Kroll.constant public static final int RETURNKEY_DEFAULT = 9;
-	@Kroll.constant public static final int RETURNKEY_SEND = 10;
+	@Kroll.constant
+	public static final int RETURN_KEY_TYPE_ACTION = 0;
+	@Kroll.constant
+	public static final int RETURN_KEY_TYPE_NEW_LINE = 1;
+	@Kroll.constant
+	public static final int RETURNKEY_GO = 0;
+	@Kroll.constant
+	public static final int RETURNKEY_GOOGLE = 1;
+	@Kroll.constant
+	public static final int RETURNKEY_JOIN = 2;
+	@Kroll.constant
+	public static final int RETURNKEY_NEXT = 3;
+	@Kroll.constant
+	public static final int RETURNKEY_ROUTE = 4;
+	@Kroll.constant
+	public static final int RETURNKEY_SEARCH = 5;
+	@Kroll.constant
+	public static final int RETURNKEY_YAHOO = 6;
+	@Kroll.constant
+	public static final int RETURNKEY_DONE = 7;
+	@Kroll.constant
+	public static final int RETURNKEY_EMERGENCY_CALL = 8;
+	@Kroll.constant
+	public static final int RETURNKEY_DEFAULT = 9;
+	@Kroll.constant
+	public static final int RETURNKEY_SEND = 10;
 
-	@Kroll.constant public static final int KEYBOARD_APPEARANCE_DEFAULT = -1; // Not supported
-	@Kroll.constant public static final int KEYBOARD_APPEARANCE_ALERT = -1; // Not supported
+	@Kroll.constant
+	public static final int KEYBOARD_APPEARANCE_DEFAULT = -1; // Not supported
 
-	@Kroll.constant public static final int KEYBOARD_ASCII = 0;
-	@Kroll.constant public static final int KEYBOARD_NUMBERS_PUNCTUATION = 1;
-	@Kroll.constant public static final int KEYBOARD_URL = 2;
-	@Kroll.constant public static final int KEYBOARD_NUMBER_PAD = 3;
-	@Kroll.constant public static final int KEYBOARD_PHONE_PAD = 4;
-	@Kroll.constant public static final int KEYBOARD_EMAIL = 5;
-	@Kroll.constant public static final int KEYBOARD_NAMEPHONE_PAD = 6;
-	@Kroll.constant public static final int KEYBOARD_DEFAULT = 7;
-	@Kroll.constant public static final int KEYBOARD_DECIMAL_PAD = 8;
-	
-	@Kroll.constant public static final int AUTOLINK_ALL = Linkify.ALL;
-	@Kroll.constant public static final int AUTOLINK_EMAIL_ADDRESSES = Linkify.EMAIL_ADDRESSES;
-	@Kroll.constant public static final int AUTOLINK_MAP_ADDRESSES = Linkify.MAP_ADDRESSES;
-	@Kroll.constant public static final int AUTOLINK_PHONE_NUMBERS = Linkify.PHONE_NUMBERS;
-	@Kroll.constant public static final int AUTOLINK_URLS = Linkify.WEB_URLS;
-	@Kroll.constant public static final int AUTOLINK_NONE = 16;
+	@Kroll.constant
+	public static final int KEYBOARD_TYPE_ASCII = 0;
+	@Kroll.constant
+	public static final int KEYBOARD_TYPE_NUMBERS_PUNCTUATION = 1;
+	@Kroll.constant
+	public static final int KEYBOARD_TYPE_URL = 2;
+	@Kroll.constant
+	public static final int KEYBOARD_TYPE_NUMBER_PAD = 3;
+	@Kroll.constant
+	public static final int KEYBOARD_TYPE_PHONE_PAD = 4;
+	@Kroll.constant
+	public static final int KEYBOARD_TYPE_EMAIL = 5;
+	@Kroll.constant
+	public static final int KEYBOARD_TYPE_NAMEPHONE_PAD = 6;
+	@Kroll.constant
+	public static final int KEYBOARD_TYPE_DEFAULT = 7;
+	@Kroll.constant
+	public static final int KEYBOARD_TYPE_DECIMAL_PAD = 8;
 
-	@Kroll.constant public static final int INPUT_BORDERSTYLE_NONE = 0;
-	@Kroll.constant public static final int INPUT_BORDERSTYLE_ROUNDED = 1;
-	@Kroll.constant public static final int INPUT_BORDERSTYLE_BEZEL = 2;
-	@Kroll.constant public static final int INPUT_BORDERSTYLE_LINE = 3;
-	@Kroll.constant public static final int INPUT_BUTTONMODE_ONFOCUS = 0;
-	@Kroll.constant public static final int INPUT_BUTTONMODE_ALWAYS = 1;
-	@Kroll.constant public static final int INPUT_BUTTONMODE_NEVER = 2;
-	
-	@Kroll.constant public static final String LIST_ITEM_TEMPLATE_DEFAULT = "listDefaultTemplate";
-	@Kroll.constant public static final int LIST_ACCESSORY_TYPE_NONE = 0;
-	@Kroll.constant public static final int LIST_ACCESSORY_TYPE_CHECKMARK = 1;
-	@Kroll.constant public static final int LIST_ACCESSORY_TYPE_DETAIL = 2;
-	@Kroll.constant public static final int LIST_ACCESSORY_TYPE_DISCLOSURE = 3;
+	@Kroll.constant
+	public static final int ANIMATION_CURVE_EASE_IN = TiAnimationCurve.EASE_IN.toTiIntId();
+	@Kroll.constant
+	public static final int ANIMATION_CURVE_EASE_IN_OUT = TiAnimationCurve.EASE_IN_OUT.toTiIntId();
+	@Kroll.constant
+	public static final int ANIMATION_CURVE_EASE_OUT = TiAnimationCurve.EASE_OUT.toTiIntId();
+	@Kroll.constant
+	public static final int ANIMATION_CURVE_LINEAR = TiAnimationCurve.LINEAR.toTiIntId();
 
+	@Kroll.constant
+	public static final int AUTOLINK_ALL = Linkify.ALL;
+	@Kroll.constant
+	public static final int AUTOLINK_EMAIL_ADDRESSES = Linkify.EMAIL_ADDRESSES;
+	@Kroll.constant
+	public static final int AUTOLINK_MAP_ADDRESSES = Linkify.MAP_ADDRESSES;
+	@Kroll.constant
+	public static final int AUTOLINK_PHONE_NUMBERS = Linkify.PHONE_NUMBERS;
+	@Kroll.constant
+	public static final int AUTOLINK_URLS = Linkify.WEB_URLS;
+	@Kroll.constant
+	public static final int AUTOLINK_NONE = 16;
 
-	@Kroll.constant public static final int MAP_VIEW_STANDARD = 1;
-	@Kroll.constant public static final int MAP_VIEW_SATELLITE = 2;
-	@Kroll.constant public static final int MAP_VIEW_HYBRID = 3;
+	@Kroll.constant
+	public static final String AUTOFILL_TYPE_USERNAME = View.AUTOFILL_HINT_USERNAME;
+	@Kroll.constant
+	public static final String AUTOFILL_TYPE_PASSWORD = View.AUTOFILL_HINT_PASSWORD;
+	@Kroll.constant
+	public static final String AUTOFILL_TYPE_EMAIL = View.AUTOFILL_HINT_EMAIL_ADDRESS;
+	@Kroll.constant
+	public static final String AUTOFILL_TYPE_NAME = View.AUTOFILL_HINT_NAME;
+	@Kroll.constant
+	public static final String AUTOFILL_TYPE_PHONE = View.AUTOFILL_HINT_PHONE;
+	@Kroll.constant
+	public static final String AUTOFILL_TYPE_ADDRESS = View.AUTOFILL_HINT_POSTAL_ADDRESS;
+	@Kroll.constant
+	public static final String AUTOFILL_TYPE_POSTAL_CODE = View.AUTOFILL_HINT_POSTAL_CODE;
+	@Kroll.constant
+	public static final String AUTOFILL_TYPE_CARD_NUMBER = View.AUTOFILL_HINT_CREDIT_CARD_NUMBER;
+	@Kroll.constant
+	public static final String AUTOFILL_TYPE_CARD_SECURITY_CODE = View.AUTOFILL_HINT_CREDIT_CARD_SECURITY_CODE;
+	@Kroll.constant
+	public static final String AUTOFILL_TYPE_CARD_EXPIRATION_DATE = View.AUTOFILL_HINT_CREDIT_CARD_EXPIRATION_DATE;
+	@Kroll.constant
+	public static final String AUTOFILL_TYPE_CARD_EXPIRATION_DAY = View.AUTOFILL_HINT_CREDIT_CARD_EXPIRATION_DAY;
+	@Kroll.constant
+	public static final String AUTOFILL_TYPE_CARD_EXPIRATION_MONTH = View.AUTOFILL_HINT_CREDIT_CARD_EXPIRATION_MONTH;
+	@Kroll.constant
+	public static final String AUTOFILL_TYPE_CARD_EXPIRATION_YEAR = View.AUTOFILL_HINT_CREDIT_CARD_EXPIRATION_YEAR;
 
-	@Kroll.constant public static final int TABLEVIEW_POSITION_ANY = 0;
-	@Kroll.constant public static final int TABLEVIEW_POSITION_TOP = 1;
-	@Kroll.constant public static final int TABLEVIEW_POSITION_MIDDLE = 2;
-	@Kroll.constant public static final int TABLEVIEW_POSITION_BOTTOM = 3;
-	
-	@Kroll.constant public static final String TEXT_ALIGNMENT_LEFT = "left";
-	@Kroll.constant public static final String TEXT_ALIGNMENT_CENTER = "center";
-	@Kroll.constant public static final String TEXT_ALIGNMENT_RIGHT = "right";
-	@Kroll.constant public static final String TEXT_VERTICAL_ALIGNMENT_BOTTOM = "bottom";
-	@Kroll.constant public static final String TEXT_VERTICAL_ALIGNMENT_CENTER = "middle";
-	@Kroll.constant public static final String TEXT_VERTICAL_ALIGNMENT_TOP = "top";
-	
-	@Kroll.constant public static final int PORTRAIT = TiOrientationHelper.ORIENTATION_PORTRAIT;
-	@Kroll.constant public static final int UPSIDE_PORTRAIT = TiOrientationHelper.ORIENTATION_PORTRAIT_REVERSE;
-	@Kroll.constant public static final int LANDSCAPE_LEFT = TiOrientationHelper.ORIENTATION_LANDSCAPE;
-	@Kroll.constant public static final int LANDSCAPE_RIGHT = TiOrientationHelper.ORIENTATION_LANDSCAPE_REVERSE;
-	@Kroll.constant public static final int FACE_UP = TiUIHelper.FACE_UP;
-	@Kroll.constant public static final int FACE_DOWN = TiUIHelper.FACE_DOWN;
-	@Kroll.constant public static final int UNKNOWN = TiOrientationHelper.ORIENTATION_UNKNOWN;
-	
-	@Kroll.constant public static final int PICKER_TYPE_PLAIN = -1;
-	@Kroll.constant public static final int PICKER_TYPE_TIME = 0;
-	@Kroll.constant public static final int PICKER_TYPE_DATE = 1;
-	@Kroll.constant public static final int PICKER_TYPE_DATE_AND_TIME = 2;
-	@Kroll.constant public static final int PICKER_TYPE_COUNT_DOWN_TIMER = 3;
-	
-	@Kroll.constant public static final int NOTIFICATION_DURATION_LONG = Toast.LENGTH_LONG;
-	@Kroll.constant public static final int NOTIFICATION_DURATION_SHORT = Toast.LENGTH_SHORT;
-	
-	@Kroll.constant public static final int TEXT_AUTOCAPITALIZATION_NONE = 0;
-	@Kroll.constant public static final int TEXT_AUTOCAPITALIZATION_SENTENCES = 1;
-	@Kroll.constant public static final int TEXT_AUTOCAPITALIZATION_WORDS = 2;
-	@Kroll.constant public static final int TEXT_AUTOCAPITALIZATION_ALL = 3;
+	@Kroll.constant
+	public static final int BLEND_MODE_NORMAL = 0;
+	@Kroll.constant
+	public static final int BLEND_MODE_MULTIPLY = 1;
+	@Kroll.constant
+	public static final int BLEND_MODE_SCREEN = 2;
+	@Kroll.constant
+	public static final int BLEND_MODE_OVERLAY = 3;
+	@Kroll.constant
+	public static final int BLEND_MODE_DARKEN = 4;
+	@Kroll.constant
+	public static final int BLEND_MODE_LIGHTEN = 5;
+	@Kroll.constant
+	public static final int BLEND_MODE_COLOR_DODGE = 6;
+	@Kroll.constant
+	public static final int BLEND_MODE_COLOR_BURN = 7;
+	@Kroll.constant
+	public static final int BLEND_MODE_SOFT_LIGHT = 8;
+	@Kroll.constant
+	public static final int BLEND_MODE_HARD_LIGHT = 9;
+	@Kroll.constant
+	public static final int BLEND_MODE_DIFFERENCE = 10;
+	@Kroll.constant
+	public static final int BLEND_MODE_EXCLUSION = 11;
+	@Kroll.constant
+	public static final int BLEND_MODE_HUE = 12;
+	@Kroll.constant
+	public static final int BLEND_MODE_SATURATION = 13;
+	@Kroll.constant
+	public static final int BLEND_MODE_COLOR = 14;
+	@Kroll.constant
+	public static final int BLEND_MODE_LUMINOSITY = 15;
+	@Kroll.constant
+	public static final int BLEND_MODE_CLEAR = 16;
+	@Kroll.constant
+	public static final int BLEND_MODE_COPY = 17;
+	@Kroll.constant
+	public static final int BLEND_MODE_SOURCE_IN = 18;
+	@Kroll.constant
+	public static final int BLEND_MODE_SOURCE_OUT = 19;
+	@Kroll.constant
+	public static final int BLEND_MODE_SOURCE_ATOP = 20;
+	@Kroll.constant
+	public static final int BLEND_MODE_DESTINATION_OVER = 21;
+	@Kroll.constant
+	public static final int BLEND_MODE_DESTINATION_IN = 22;
+	@Kroll.constant
+	public static final int BLEND_MODE_DESTINATION_OUT = 23;
+	@Kroll.constant
+	public static final int BLEND_MODE_DESTINATION_ATOP = 24;
+	@Kroll.constant
+	public static final int BLEND_MODE_XOR = 25;
+	@Kroll.constant
+	public static final int BLEND_MODE_PLUS_DARKER = 26;
+	@Kroll.constant
+	public static final int BLEND_MODE_PLUS_LIGHTER = 27;
 
-	@Kroll.constant public static final String SIZE = TiC.LAYOUT_SIZE;
-	@Kroll.constant public static final String FILL = TiC.LAYOUT_FILL;
-	@Kroll.constant public static final String UNIT_PX = TiDimension.UNIT_PX;
-	@Kroll.constant public static final String UNIT_MM = TiDimension.UNIT_MM;
-	@Kroll.constant public static final String UNIT_CM = TiDimension.UNIT_CM;
-	@Kroll.constant public static final String UNIT_IN = TiDimension.UNIT_IN;
-	@Kroll.constant public static final String UNIT_DIP = TiDimension.UNIT_DIP;
+	@Kroll.constant
+	public static final int BUTTON_STYLE_FILLED = 1;
+	@Kroll.constant
+	public static final int BUTTON_STYLE_OUTLINED = 2;
+	@Kroll.constant
+	public static final int BUTTON_STYLE_TEXT = 3;
+	@Kroll.constant
+	public static final int BUTTON_STYLE_OPTION_POSITIVE = 4;
+	@Kroll.constant
+	public static final int BUTTON_STYLE_OPTION_NEGATIVE = 5;
+	@Kroll.constant
+	public static final int BUTTON_STYLE_OPTION_NEUTRAL = 6;
+
+	@Kroll.constant
+	public static final int DATE_PICKER_STYLE_AUTOMATIC = 1;
+	@Kroll.constant
+	public static final int DATE_PICKER_STYLE_COMPACT = 2;
+	@Kroll.constant
+	public static final int DATE_PICKER_STYLE_INLINE = 3;
+	@Kroll.constant
+	public static final int DATE_PICKER_STYLE_WHEELS = 4;
+
+	@Kroll.constant
+	public static final int INPUT_BORDERSTYLE_NONE = 0;
+	@Kroll.constant
+	public static final int INPUT_BORDERSTYLE_ROUNDED = 1;
+	@Kroll.constant
+	public static final int INPUT_BORDERSTYLE_BEZEL = 2;
+	@Kroll.constant
+	public static final int INPUT_BORDERSTYLE_LINE = 3;
+	@Kroll.constant
+	public static final int INPUT_BORDERSTYLE_UNDERLINED = 4;
+	@Kroll.constant
+	public static final int INPUT_BORDERSTYLE_FILLED = 5;
+
+	@Kroll.constant
+	public static final int INPUT_BUTTONMODE_ONFOCUS = 0;
+	@Kroll.constant
+	public static final int INPUT_BUTTONMODE_ALWAYS = 1;
+	@Kroll.constant
+	public static final int INPUT_BUTTONMODE_NEVER = 2;
+
+	@Kroll.constant
+	public static final String LIST_ITEM_TEMPLATE_DEFAULT = "listDefaultTemplate";
+	@Kroll.constant
+	public static final int LIST_ACCESSORY_TYPE_NONE = 0;
+	@Kroll.constant
+	public static final int LIST_ACCESSORY_TYPE_CHECKMARK = 1;
+	@Kroll.constant
+	public static final int LIST_ACCESSORY_TYPE_DETAIL = 2;
+	@Kroll.constant
+	public static final int LIST_ACCESSORY_TYPE_DISCLOSURE = 3;
+
+	@Kroll.constant
+	public static final int MAP_VIEW_STANDARD = 1;
+	@Kroll.constant
+	public static final int MAP_VIEW_SATELLITE = 2;
+	@Kroll.constant
+	public static final int MAP_VIEW_HYBRID = 3;
+
+	@Kroll.constant
+	public static final int SELECTION_STYLE_NONE = 0;
+	@Kroll.constant
+	public static final int SELECTION_STYLE_DEFAULT = 1;
+
+	@Kroll.constant
+	public static final int SWITCH_STYLE_CHECKBOX = 0;
+	@Kroll.constant
+	public static final int SWITCH_STYLE_TOGGLE_BUTTON = 1;
+	@Kroll.constant
+	public static final int SWITCH_STYLE_SLIDER = 2;
+	@Kroll.constant
+	public static final int SWITCH_STYLE_CHIP = 3;
+
+	@Kroll.constant
+	public static final int TABLEVIEW_POSITION_ANY = 0;
+	@Kroll.constant
+	public static final int TABLEVIEW_POSITION_TOP = 1;
+	@Kroll.constant
+	public static final int TABLEVIEW_POSITION_MIDDLE = 2;
+	@Kroll.constant
+	public static final int TABLEVIEW_POSITION_BOTTOM = 3;
+
+	@Kroll.constant
+	public static final String TEXT_ALIGNMENT_LEFT = "left";
+	@Kroll.constant
+	public static final String TEXT_ALIGNMENT_CENTER = "center";
+	@Kroll.constant
+	public static final String TEXT_ALIGNMENT_RIGHT = "right";
+	@Kroll.constant
+	public static final String TEXT_ALIGNMENT_JUSTIFY = "justify";
+	@Kroll.constant
+	public static final String TEXT_VERTICAL_ALIGNMENT_BOTTOM = "bottom";
+	@Kroll.constant
+	public static final String TEXT_VERTICAL_ALIGNMENT_CENTER = "middle";
+	@Kroll.constant
+	public static final String TEXT_VERTICAL_ALIGNMENT_TOP = "top";
+
+	@Kroll.constant
+	public static final int PORTRAIT = TiDeviceOrientation.PORTRAIT.toTiIntId();
+	@Kroll.constant
+	public static final int UPSIDE_PORTRAIT = TiDeviceOrientation.UPSIDE_PORTRAIT.toTiIntId();
+	@Kroll.constant
+	public static final int LANDSCAPE_LEFT = TiDeviceOrientation.LANDSCAPE_LEFT.toTiIntId();
+	@Kroll.constant
+	public static final int LANDSCAPE_RIGHT = TiDeviceOrientation.LANDSCAPE_RIGHT.toTiIntId();
+	@Kroll.constant
+	public static final int FACE_UP = TiDeviceOrientation.FACE_UP.toTiIntId();
+	@Kroll.constant
+	public static final int FACE_DOWN = TiDeviceOrientation.FACE_DOWN.toTiIntId();
+	@Kroll.constant
+	public static final int UNKNOWN = TiDeviceOrientation.UNKNOWN.toTiIntId();
+
+	@Kroll.constant
+	public static final int PICKER_TYPE_PLAIN = -1;
+	@Kroll.constant
+	public static final int PICKER_TYPE_TIME = 0;
+	@Kroll.constant
+	public static final int PICKER_TYPE_DATE = 1;
+	@Kroll.constant
+	public static final int PICKER_TYPE_DATE_AND_TIME = 2;
+	@Kroll.constant
+	public static final int PICKER_TYPE_COUNT_DOWN_TIMER = 3;
+
+	@Kroll.constant
+	public static final int NOTIFICATION_DURATION_LONG = Toast.LENGTH_LONG;
+	@Kroll.constant
+	public static final int NOTIFICATION_DURATION_SHORT = Toast.LENGTH_SHORT;
+
+	@Kroll.constant
+	public static final int TABLE_VIEW_SEPARATOR_STYLE_NONE = 0;
+	@Kroll.constant
+	public static final int TABLE_VIEW_SEPARATOR_STYLE_SINGLE_LINE = 1;
+
+	@Kroll.constant
+	public static final int TEXT_AUTOCAPITALIZATION_NONE = 0;
+	@Kroll.constant
+	public static final int TEXT_AUTOCAPITALIZATION_SENTENCES = 1;
+	@Kroll.constant
+	public static final int TEXT_AUTOCAPITALIZATION_WORDS = 2;
+	@Kroll.constant
+	public static final int TEXT_AUTOCAPITALIZATION_ALL = 3;
+
+	@Kroll.constant
+	public static final int TEXT_ELLIPSIZE_TRUNCATE_START = 0;
+	@Kroll.constant
+	public static final int TEXT_ELLIPSIZE_TRUNCATE_MIDDLE = 1;
+	@Kroll.constant
+	public static final int TEXT_ELLIPSIZE_TRUNCATE_END = 2;
+	@Kroll.constant
+	public static final int TEXT_ELLIPSIZE_TRUNCATE_MARQUEE = 3;
+	@Kroll.constant
+	public static final int TEXT_ELLIPSIZE_TRUNCATE_NONE = 4;
+
+	@Kroll.constant
+	public static final String SIZE = TiC.LAYOUT_SIZE;
+	@Kroll.constant
+	public static final String FILL = TiC.LAYOUT_FILL;
+	@Kroll.constant
+	public static final String UNIT_PX = TiDimension.UNIT_PX;
+	@Kroll.constant
+	public static final String UNIT_MM = TiDimension.UNIT_MM;
+	@Kroll.constant
+	public static final String UNIT_CM = TiDimension.UNIT_CM;
+	@Kroll.constant
+	public static final String UNIT_IN = TiDimension.UNIT_IN;
+	@Kroll.constant
+	public static final String UNIT_DIP = TiDimension.UNIT_DIP;
 
 	// TiWebViewClient onReceivedError error codes.
-	@Kroll.constant public static final int URL_ERROR_AUTHENTICATION = WebViewClient.ERROR_AUTHENTICATION;
-	@Kroll.constant public static final int URL_ERROR_BAD_URL = WebViewClient.ERROR_BAD_URL;
-	@Kroll.constant public static final int URL_ERROR_CONNECT = WebViewClient.ERROR_CONNECT;
-	@Kroll.constant public static final int URL_ERROR_SSL_FAILED = WebViewClient.ERROR_FAILED_SSL_HANDSHAKE;
-	@Kroll.constant public static final int URL_ERROR_FILE = WebViewClient.ERROR_FILE;
-	@Kroll.constant public static final int URL_ERROR_FILE_NOT_FOUND = WebViewClient.ERROR_FILE_NOT_FOUND;
-	@Kroll.constant public static final int URL_ERROR_HOST_LOOKUP = WebViewClient.ERROR_HOST_LOOKUP;
-	@Kroll.constant public static final int URL_ERROR_REDIRECT_LOOP = WebViewClient.ERROR_REDIRECT_LOOP;
-	@Kroll.constant public static final int URL_ERROR_TIMEOUT = WebViewClient.ERROR_TIMEOUT;
-	@Kroll.constant public static final int URL_ERROR_UNKNOWN = WebViewClient.ERROR_UNKNOWN;
-	@Kroll.constant public static final int URL_ERROR_UNSUPPORTED_SCHEME = WebViewClient.ERROR_UNSUPPORTED_SCHEME;
+	@Kroll.constant
+	public static final int URL_ERROR_AUTHENTICATION = WebViewClient.ERROR_AUTHENTICATION;
+	@Kroll.constant
+	public static final int URL_ERROR_BAD_URL = WebViewClient.ERROR_BAD_URL;
+	@Kroll.constant
+	public static final int URL_ERROR_CONNECT = WebViewClient.ERROR_CONNECT;
+	@Kroll.constant
+	public static final int URL_ERROR_SSL_FAILED = WebViewClient.ERROR_FAILED_SSL_HANDSHAKE;
+	@Kroll.constant
+	public static final int URL_ERROR_FILE = WebViewClient.ERROR_FILE;
+	@Kroll.constant
+	public static final int URL_ERROR_FILE_NOT_FOUND = WebViewClient.ERROR_FILE_NOT_FOUND;
+	@Kroll.constant
+	public static final int URL_ERROR_HOST_LOOKUP = WebViewClient.ERROR_HOST_LOOKUP;
+	@Kroll.constant
+	public static final int URL_ERROR_REDIRECT_LOOP = WebViewClient.ERROR_REDIRECT_LOOP;
+	@Kroll.constant
+	public static final int URL_ERROR_TIMEOUT = WebViewClient.ERROR_TIMEOUT;
+	@Kroll.constant
+	public static final int URL_ERROR_UNKNOWN = WebViewClient.ERROR_UNKNOWN;
+	@Kroll.constant
+	public static final int URL_ERROR_UNSUPPORTED_SCHEME = WebViewClient.ERROR_UNSUPPORTED_SCHEME;
 
-	protected static final int MSG_SET_BACKGROUND_COLOR = KrollProxy.MSG_LAST_ID + 100;
-	protected static final int MSG_SET_BACKGROUND_IMAGE = KrollProxy.MSG_LAST_ID + 101;
-	protected static final int MSG_LAST_ID = MSG_SET_BACKGROUND_IMAGE;
+	@Kroll.constant
+	public static final int ATTRIBUTE_FONT = 0;
+	@Kroll.constant
+	public static final int ATTRIBUTE_FOREGROUND_COLOR = 1;
+	@Kroll.constant
+	public static final int ATTRIBUTE_BACKGROUND_COLOR = 2;
+	@Kroll.constant
+	public static final int ATTRIBUTE_STRIKETHROUGH_STYLE = 3;
+	@Kroll.constant
+	public static final int ATTRIBUTE_UNDERLINES_STYLE = 4;
+	@Kroll.constant
+	public static final int ATTRIBUTE_LINK = 5;
+	@Kroll.constant
+	public static final int ATTRIBUTE_UNDERLINE_COLOR = 6;
+	@Kroll.constant
+	public static final int ATTRIBUTE_SUPERSCRIPT_STYLE = 7;
+	@Kroll.constant
+	public static final int ATTRIBUTE_SUBSCRIPT_STYLE = 8;
+	@Kroll.constant
+	public static final int ATTRIBUTE_BASELINE_OFFSET = 9;
 
+	@Kroll.constant
+	public static final int INPUT_TYPE_CLASS_NUMBER = InputType.TYPE_CLASS_NUMBER;
+	@Kroll.constant
+	public static final int INPUT_TYPE_CLASS_TEXT = InputType.TYPE_CLASS_TEXT;
+
+	@Kroll.constant
+	public static final int HINT_TYPE_STATIC = 0;
+	@Kroll.constant
+	public static final int HINT_TYPE_ANIMATED = 1;
+
+	@Kroll.constant
+	public static final int HIDDEN_BEHAVIOR_GONE = View.GONE;
+	@Kroll.constant
+	public static final int HIDDEN_BEHAVIOR_INVISIBLE = View.INVISIBLE;
+
+	@Kroll.constant
+	public static final int USER_INTERFACE_STYLE_LIGHT = Configuration.UI_MODE_NIGHT_NO;
+	@Kroll.constant
+	public static final int USER_INTERFACE_STYLE_DARK = Configuration.UI_MODE_NIGHT_YES;
+	@Kroll.constant
+	public static final int USER_INTERFACE_STYLE_UNSPECIFIED = Configuration.UI_MODE_NIGHT_UNDEFINED;
+
+	@Kroll.constant
+	public static final int BREAK_SIMPLE = 0;
+	@Kroll.constant
+	public static final int BREAK_HIGH_QUALITY = 1;
+	@Kroll.constant
+	public static final int BREAK_BALANCED = 2;
+
+	@Kroll.constant
+	public static final int HYPHEN_NONE = 0;
+	@Kroll.constant
+	public static final int HYPHEN_NORMAL = 1;
+	@Kroll.constant
+	public static final int HYPHEN_FULL = 2;
+	@Kroll.constant
+	public static final int HYPHEN_NORMAL_FAST = 3;
+	@Kroll.constant
+	public static final int HYPHEN_FULL_FAST = 4;
+
+	protected static final int MSG_LAST_ID = KrollProxy.MSG_LAST_ID + 101;
 
 	public UIModule()
 	{
 		super();
+
+		// Register the module's broadcast receiver.
+		TiApplication.addConfigurationChangeListener(this);
+		lastEmittedStyle = getUserInterfaceStyle();
+
+		// Set up a listener to be invoked when the JavaScript runtime is about to be terminated/disposed.
+		KrollRuntime.addOnDisposingListener(new KrollRuntime.OnDisposingListener() {
+			@Override
+			public void onDisposing(KrollRuntime runtime)
+			{
+				// Remove this listener from the runtime's static collection.
+				KrollRuntime.removeOnDisposingListener(this);
+			}
+		});
 	}
 
-	public UIModule(TiContext tiContext)
-	{
-		this();
-	}
-
-	@Kroll.setProperty(runOnUiThread=true) @Kroll.method(runOnUiThread=true)
+	@Kroll.setProperty(runOnUiThread = true)
 	public void setBackgroundColor(String color)
 	{
-		if (TiApplication.isUIThread()) {
-			doSetBackgroundColor(color);
-
-		} else {
-			Message message = getMainHandler().obtainMessage(MSG_SET_BACKGROUND_COLOR, color);
-			message.sendToTarget();
-		}
+		doSetBackgroundColor(color);
 	}
 
 	protected void doSetBackgroundColor(String color)
 	{
 		TiRootActivity root = TiApplication.getInstance().getRootActivity();
 		if (root != null) {
-			root.setBackgroundColor(color != null ? TiColorHelper.parseColor(color) : Color.TRANSPARENT);
+			root.setBackgroundColor(color != null ? TiColorHelper.parseColor(color, root) : Color.TRANSPARENT);
 		}
 	}
 
-	@Kroll.setProperty(runOnUiThread=true) @Kroll.method(runOnUiThread=true)
+	@Kroll.getProperty
+	public String[] availableSystemFontFamilies()
+	{
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+			Set<Font> fonts = SystemFonts.getAvailableFonts();
+			String[] list = new String[fonts.size()];
+			int count = 0;
+			for (Font font: fonts) {
+				list[count] = font.getFile().getName().replaceFirst("[.][^.]+$", "");
+				count++;
+			}
+			return list;
+		} else {
+			String path = "/system/fonts";
+			File file = new File(path);
+			File[] ff = file.listFiles();
+			String[] list = new String[ff.length];
+			int count = 0;
+			for (File font: ff) {
+				list[count] = font.getName().replaceFirst("[.][^.]+$", "");
+				count++;
+			}
+			return list;
+		}
+	}
+	@Kroll.setProperty(runOnUiThread = true)
 	public void setBackgroundImage(Object image)
 	{
-		if (TiApplication.isUIThread()) {
-			doSetBackgroundImage(image);
-
-		} else {
-			Message message = getMainHandler().obtainMessage(MSG_SET_BACKGROUND_IMAGE, image);
-			message.sendToTarget();
-		}
+		doSetBackgroundImage(image);
 	}
 
 	protected void doSetBackgroundImage(Object image)
@@ -201,9 +535,12 @@ public class UIModule extends KrollModule implements Handler.Callback
 
 			if (image instanceof Number) {
 				try {
-					imageDrawable = TiUIHelper.getResourceDrawable((Integer)image);
+					imageDrawable = TiUIHelper.getResourceDrawable((Integer) image);
 				} catch (Resources.NotFoundException e) {
-					Log.w(TAG , "Unable to set background drawable for root window.  An integer id was provided but no such drawable resource exists.");
+					String warningMessage
+						= "Unable to set background drawable for root window. "
+						+ "An integer id was provided but no such drawable resource exists.";
+					Log.w(TAG, warningMessage);
 				}
 			} else {
 				imageDrawable = TiUIHelper.getResourceDrawable(image);
@@ -212,7 +549,6 @@ public class UIModule extends KrollModule implements Handler.Callback
 			root.setBackgroundImage(imageDrawable);
 		}
 	}
-
 
 	@Kroll.method
 	public double convertUnits(String convertFromValue, String convertToUnits)
@@ -240,65 +576,139 @@ public class UIModule extends KrollModule implements Handler.Callback
 		return result;
 	}
 
-	protected void doSetOrientation(int tiOrientationMode)
+	@Kroll.getProperty
+	public int getOverrideUserInterfaceStyle()
 	{
-		Activity activity = TiApplication.getInstance().getCurrentActivity();
-		if (activity instanceof TiBaseActivity)
-		{
-			int[] orientationModes;
-
-			if (tiOrientationMode == -1)
-			{
-				orientationModes = new int[] {};
-			}
-			else
-			{
-				orientationModes = new int[] {tiOrientationMode};
-			}
-
-			// this should only be entered if a LW window is created on top of the root activity
-			TiBaseActivity tiBaseActivity = (TiBaseActivity)activity;
-			TiWindowProxy windowProxy = tiBaseActivity.getWindowProxy();
-
-			if (windowProxy == null)
-			{
-				if (tiBaseActivity.lwWindow != null)
-				{
-					tiBaseActivity.lwWindow.setOrientationModes(orientationModes);
-				}
-				else
-				{
-					Log.e(TAG, "No window has been associated with activity, unable to set orientation");
-				}
-			}
-			else
-			{
-				windowProxy.setOrientationModes(orientationModes);
-			}
-		}	
+		switch (AppCompatDelegate.getDefaultNightMode()) {
+			case AppCompatDelegate.MODE_NIGHT_NO:
+				return Configuration.UI_MODE_NIGHT_NO;
+			case AppCompatDelegate.MODE_NIGHT_YES:
+				return Configuration.UI_MODE_NIGHT_YES;
+		}
+		return Configuration.UI_MODE_NIGHT_UNDEFINED;
 	}
 
-	public boolean handleMessage(Message message)
+	@Kroll.setProperty
+	public void setOverrideUserInterfaceStyle(int styleId)
 	{
-		switch (message.what) {
-			case MSG_SET_BACKGROUND_COLOR: {
-				doSetBackgroundColor((String)message.obj);
-
-				return true;
-			}
-			case MSG_SET_BACKGROUND_IMAGE: {
-				doSetBackgroundImage(message.obj);
-
-				return true;
-			}
+		// Convert given "UI_MODE_*" constant to a "MODE_NIGHT_*" constant.
+		int nightModeId = AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM;
+		if (styleId == Configuration.UI_MODE_NIGHT_NO) {
+			nightModeId = AppCompatDelegate.MODE_NIGHT_NO;
+		} else if (styleId == Configuration.UI_MODE_NIGHT_YES) {
+			nightModeId = AppCompatDelegate.MODE_NIGHT_YES;
 		}
 
-		return super.handleMessage(message);
+		// Do not continue if the mode isn't changing.
+		if (nightModeId == AppCompatDelegate.getDefaultNightMode()) {
+			return;
+		}
+
+		// Change the night mode.
+		AppCompatDelegate.setDefaultNightMode(nightModeId);
+
+		// Fire a "userinterfacestyle" change event.
+		this.onConfigurationChanged(TiApplication.getInstance().getResources().getConfiguration());
+
+		// Force our top-most activity apply the assigned night mode.
+		// Note: Works-around a Google bug where it doesn't always call the activity's onNightModeChanged() method.
+		Activity activity = TiApplication.getAppCurrentActivity();
+		if (activity instanceof TiBaseActivity) {
+			((TiBaseActivity) activity).applyNightMode();
+		}
+	}
+
+	@Kroll.getProperty
+	public int getUserInterfaceStyle()
+	{
+		return getUserInterfaceStyle(TiApplication.getInstance().getResources().getConfiguration());
+	}
+
+	@Kroll.getProperty
+	public int statusBarHeight()
+	{
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+			Window w = TiApplication.getAppCurrentActivity().getWindow();
+			if (w == null) return 0;
+			View dv = w.getDecorView();
+			if (dv == null) return 0;
+			if (dv.getRootWindowInsets() == null) return 0;
+			DisplayCutout dpc = dv.getRootWindowInsets().getDisplayCutout();
+			if (dpc == null) return 0;
+			List<Rect> rects = dpc.getBoundingRects();
+			if (rects.size() > 0) {
+				int h = dpc.getBoundingRects().get(0).height();
+				return (int) new TiDimension(h, TiDimension.TYPE_HEIGHT).getAsDefault(dv);
+			}
+		}
+		return 0;
+	}
+
+	@Kroll.getProperty
+	public KrollDict getCutoutSize()
+	{
+		KrollDict returnValue = new KrollDict();
+		returnValue.put("top", 0);
+		returnValue.put("left", 0);
+		returnValue.put("height", 0);
+		returnValue.put("width", 0);
+
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+			Window w = TiApplication.getAppCurrentActivity().getWindow();
+			if (w == null) return returnValue;
+			View dv = w.getDecorView();
+			if (dv == null) return returnValue;
+			if (dv.getRootWindowInsets() == null) return returnValue;
+			DisplayCutout dpc = dv.getRootWindowInsets().getDisplayCutout();
+			if (dpc == null) return returnValue;
+			List<Rect> rects = dpc.getBoundingRects();
+
+			int cutouts = rects.size();
+			int[] result = new int[cutouts * 4];
+			int index = 0;
+
+			if (rects.size() > 0) {
+				int dh = dpc.getBoundingRects().get(0).height();
+				int dw = dpc.getBoundingRects().get(0).width();
+				int dt = dpc.getBoundingRects().get(0).top;
+				int dl = dpc.getBoundingRects().get(0).left;
+
+				returnValue.put("left", (int) new TiDimension(dl, TiDimension.TYPE_LEFT).getAsDefault(dv));
+				returnValue.put("top", (int) new TiDimension(dt, TiDimension.TYPE_TOP).getAsDefault(dv));
+				returnValue.put("width", (int) new TiDimension(dw, TiDimension.TYPE_WIDTH).getAsDefault(dv));
+				returnValue.put("height", (int) new TiDimension(dh, TiDimension.TYPE_HEIGHT).getAsDefault(dv));
+			}
+		}
+		return returnValue;
 	}
 
 	@Override
 	public String getApiName()
 	{
 		return "Ti.UI";
+	}
+
+	private int getUserInterfaceStyle(@NonNull Configuration config)
+	{
+		int styleId = getOverrideUserInterfaceStyle();
+		if (styleId == Configuration.UI_MODE_NIGHT_UNDEFINED) {
+			styleId = config.uiMode & Configuration.UI_MODE_NIGHT_MASK;
+		}
+		return styleId;
+	}
+
+	@Override
+	public void onConfigurationChanged(@NonNull Configuration config)
+	{
+		int currentMode = getUserInterfaceStyle(config);
+		if (currentMode == lastEmittedStyle) {
+			return;
+		}
+		lastEmittedStyle = currentMode;
+
+		KrollDict event = new KrollDict();
+		event.put(TiC.PROPERTY_VALUE, lastEmittedStyle);
+		fireEvent(TiC.EVENT_USER_INTERFACE_STYLE, event);
+
 	}
 }

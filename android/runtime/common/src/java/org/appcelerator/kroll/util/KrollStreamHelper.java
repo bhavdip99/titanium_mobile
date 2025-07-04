@@ -1,6 +1,6 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2011-2012 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
@@ -29,7 +29,7 @@ public class KrollStreamHelper
 
 	public static void pump(InputStream in, OutputStream out, int bufferSize)
 	{
-		byte buffer[] = new byte[bufferSize];
+		byte[] buffer = new byte[bufferSize];
 		int count = 0;
 		try {
 			while ((count = in.read(buffer)) != -1) {
@@ -49,7 +49,7 @@ public class KrollStreamHelper
 
 	public static void pumpCount(InputStream in, OutputStream out, int byteCount, int bufferSize)
 	{
-		byte buffer[] = new byte[bufferSize];
+		byte[] buffer = new byte[bufferSize];
 		int totalCount = 0;
 		try {
 			while (totalCount < byteCount) {

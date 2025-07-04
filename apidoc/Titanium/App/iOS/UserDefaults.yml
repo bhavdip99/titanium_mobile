@@ -1,0 +1,34 @@
+---
+name: Titanium.App.iOS.UserDefaults
+summary: |
+    The UserDefaults module is used for storing application-related data in property/value pairs 
+    that persist beyond application sessions and device power cycles. UserDefaults allows the suiteName
+    of the UserDefaults to be specified at creation time.
+
+    **Important**: Using this API requires the `NSPrivacyAccessedAPICategoryUserDefaults` property set in the
+    privacy manifest that was introduced in iOS 17. You can learn more about it [here](https://developer.apple.com/documentation/bundleresources/privacy_manifest_files/describing_use_of_required_reason_api).
+description: |
+    Unlike Titanium.App.Properties, Titanium.App.iOS.UserDefaults does not pull properties defined in the `tiapp.xml` file.
+
+    To create a UserDefaults object, use the <Titanium.App.iOS.createUserDefaults> method.
+createable: false
+extends: Titanium.App.Properties
+since: "4.0.0"
+platforms: [iphone, ipad, macos]
+
+properties:
+  - name: suiteName
+    summary: Sets the name of the suite to be used to access UserDefaults.
+    type: String
+    availability: creation
+
+examples:
+  - title: Create a UserDefaults object
+    example: |
+        Creating a UserDefaults object
+
+        ``` js
+        var props = Ti.App.iOS.createUserDefaults({
+            suiteName: 'group.mySuite'
+        });
+        ```

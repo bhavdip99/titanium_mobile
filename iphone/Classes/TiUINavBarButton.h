@@ -1,23 +1,23 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2010 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
 #ifdef USE_TI_UIBUTTON
 
-#import "TiViewProxy.h"
+#import <TitaniumKit/TiViewProxy.h>
 
 @class TiUIView;
 
-@interface TiUINavBarButton : UIBarButtonItem<TiProxyDelegate> {
-@private
-	TiViewProxy *proxy;
-	TiUIView *activityDelegate;
+@interface TiUINavBarButton : UIBarButtonItem <TiProxyDelegate> {
+  @private
+  TiViewProxy *proxy;
+  TiUIView *activityDelegate;
 }
-@property(nonatomic,readonly) TiViewProxy* proxy;
+@property (nonatomic, readonly) TiViewProxy *proxy;
 
--(id)initWithProxy:(TiProxy*)proxy;
+- (id)initWithProxy:(TiProxy *)proxy;
 
 @end
 

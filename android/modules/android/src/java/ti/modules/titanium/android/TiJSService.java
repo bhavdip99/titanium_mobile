@@ -1,6 +1,6 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2012 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
@@ -55,12 +55,13 @@ public class TiJSService extends TiBaseService
 		if (!fullUrl.contains("://") && !fullUrl.startsWith("/") && proxy.getCreationUrl().baseUrl != null) {
 			fullUrl = proxy.getCreationUrl().baseUrl + fullUrl;
 		}
+
 		if (Log.isDebugModeEnabled()) {
-			if (url != fullUrl) {
-				Log.d(TAG, "Eval JS Service:" + url + " (" + fullUrl+ ")");
-			} else {
-				Log.d(TAG, "Eval JS Service:" + url);
+			String message = "Eval JS Service: " + url;
+			if (!url.equals(fullUrl)) {
+				message += " (" + fullUrl + ")";
 			}
+			Log.d(TAG, message);
 		}
 
 		if (fullUrl.startsWith(TiC.URL_APP_PREFIX)) {
@@ -71,10 +72,9 @@ public class TiJSService extends TiBaseService
 		}
 
 		proxy.fireEvent(TiC.EVENT_RESUME, new KrollDict());
-		KrollRuntime.getInstance().runModule(KrollAssetHelper.readAsset(fullUrl), fullUrl, proxy);
+		KrollRuntime.getInstance().runModuleBytes(KrollAssetHelper.readAssetBytes(fullUrl), fullUrl, proxy);
 		proxy.fireEvent(TiC.EVENT_PAUSE, new KrollDict());
 		proxy.fireEvent(TiC.EVENT_STOP, new KrollDict()); // this basic JS Service class only runs once.
-
 	}
 
 	@Override
@@ -82,11 +82,11 @@ public class TiJSService extends TiBaseService
 	{
 		finalizeUrl(intent);
 		int lastSlash = url.lastIndexOf('/');
-		String baseUrl = url.substring(0, lastSlash+1);
+		String baseUrl = url.substring(0, lastSlash + 1);
 		if (baseUrl.length() == 0) {
 			baseUrl = null;
 		}
-		serviceProxy= new ServiceProxy(this, intent, proxyCounter.incrementAndGet());
+		serviceProxy = new ServiceProxy(this, intent, proxyCounter.incrementAndGet());
 		return serviceProxy;
 	}
 
@@ -96,5 +96,4 @@ public class TiJSService extends TiBaseService
 		proxy.fireEvent(TiC.EVENT_START, new KrollDict());
 		executeServiceCode(proxy);
 	}
-
 }

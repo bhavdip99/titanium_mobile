@@ -1,6 +1,6 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2010 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
@@ -10,39 +10,40 @@
 
 @implementation TiUIButtonBarProxy
 
-NSArray* tabbedKeySequence;
+NSArray *tabbedKeySequence;
 
--(NSArray*)keySequence
+- (NSArray *)keySequence
 {
-	if (tabbedKeySequence == nil) {
-		tabbedKeySequence = [[NSArray alloc] initWithObjects:@"labels",@"style",nil];
-	}
-	return tabbedKeySequence;
+  if (tabbedKeySequence == nil) {
+    tabbedKeySequence = [[NSArray alloc] initWithObjects:@"labels", @"style", nil];
+  }
+  return tabbedKeySequence;
 }
 
--(NSString*)apiName
+- (NSString *)apiName
 {
-    return @"Ti.UI.ButtonBar";
+  return @"Ti.UI.ButtonBar";
 }
 
--(TiUIView*)newView
+- (TiUIView *)newView
 {
-	TiUIButtonBar * result = [[TiUIButtonBar alloc] init];
-	[result setTabbedBar:NO];
-	return result;
+  TiUIButtonBar *result = [[TiUIButtonBar alloc] init];
+  [result setTabbedBar:NO];
+  return result;
 }
 
 USE_VIEW_FOR_CONTENT_WIDTH
 USE_VIEW_FOR_CONTENT_HEIGHT
 
-
--(TiDimension)defaultAutoWidthBehavior:(id)unused
+#ifndef TI_USE_AUTOLAYOUT
+- (TiDimension)defaultAutoWidthBehavior:(id)unused
 {
-    return TiDimensionAutoSize;
+  return TiDimensionAutoSize;
 }
--(TiDimension)defaultAutoHeightBehavior:(id)unused
+- (TiDimension)defaultAutoHeightBehavior:(id)unused
 {
-    return TiDimensionAutoSize;
+  return TiDimensionAutoSize;
 }
+#endif
 
 @end

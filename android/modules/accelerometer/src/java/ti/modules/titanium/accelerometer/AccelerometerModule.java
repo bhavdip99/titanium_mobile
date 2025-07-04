@@ -1,6 +1,6 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2013 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
@@ -9,15 +9,14 @@ package ti.modules.titanium.accelerometer;
 import org.appcelerator.kroll.KrollDict;
 import org.appcelerator.kroll.KrollModule;
 import org.appcelerator.kroll.KrollProxy;
+import org.appcelerator.kroll.KrollRuntime;
 import org.appcelerator.kroll.annotations.Kroll;
-import org.appcelerator.titanium.TiContext;
 import org.appcelerator.titanium.util.TiSensorHelper;
 
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
-
 
 @Kroll.module
 public class AccelerometerModule extends KrollModule implements SensorEventListener
@@ -27,15 +26,25 @@ public class AccelerometerModule extends KrollModule implements SensorEventListe
 	private boolean accelerometerRegistered = false;
 	private long lastSensorEventTimestamp = 0;
 
-
 	public AccelerometerModule()
 	{
 		super();
-	}
 
-	public AccelerometerModule(TiContext tiContext)
-	{
-		this();
+		// Set up a listener to be invoked when the JavaScript runtime is about to be terminated/disposed.
+		KrollRuntime.addOnDisposingListener(new KrollRuntime.OnDisposingListener() {
+			@Override
+			public void onDisposing(KrollRuntime runtime)
+			{
+				// Remove this listener from the runtime's static collection.
+				KrollRuntime.removeOnDisposingListener(this);
+
+				// Unregister the sensor listener.
+				if (accelerometerRegistered) {
+					TiSensorHelper.unregisterListener(Sensor.TYPE_ACCELEROMETER, AccelerometerModule.this);
+					accelerometerRegistered = false;
+				}
+			}
+		});
 	}
 
 	@Override
@@ -66,6 +75,7 @@ public class AccelerometerModule extends KrollModule implements SensorEventListe
 	{
 	}
 
+	@SuppressWarnings("deprecation")
 	public void onSensorChanged(SensorEvent event)
 	{
 		if (event.timestamp - lastSensorEventTimestamp > 100) {

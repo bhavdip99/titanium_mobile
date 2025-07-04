@@ -1,52 +1,54 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2010 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
 #ifdef USE_TI_UIWEBVIEW
 
-#import "TiUIView.h"
+#import <WebKit/WebKit.h>
 
+#import <TitaniumKit/TiDimension.h>
+#import <TitaniumKit/TiUIView.h>
 
-@interface TiUIWebView : TiUIView<UIWebViewDelegate> {
-@private
-	UIWebView *webview;
-	UIActivityIndicatorView *spinner;
-	NSURL *url;
-	NSMutableDictionary *listeners;
-	NSString *pageToken;
-	BOOL scalingOverride;
-	NSString *basicCredentials;
-	
-	//TODO: make more elegant
-	BOOL ignoreNextRequest;
-	id reloadData;
-    id reloadDataProperties;
-	SEL reloadMethod;
-    
-    BOOL willHandleTouches;
-    
-    NSString* lastValidLoad;
+@interface TiUIWebView : TiUIView <WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler> {
+  @private
+  WKWebView *_webView;
+  NSString *_pageToken;
+
+  TiDimension width;
+  TiDimension height;
+  CGFloat autoHeight;
+  CGFloat autoWidth;
+
+  BOOL _willHandleTouches;
+  NSArray<NSString *> *_blacklistedURLs;
+  NSArray<NSString *> *_blockedURLs;
+  NSURL *_currentURL;
+  UIActivityIndicatorView *_loadingIndicator;
+  BOOL _isViewDetached;
+  BOOL _tiCookieHandlerAdded;
+  BOOL ignoreNextRequest;
+  SEL reloadMethod;
+  NSString *assetsDirectory;
 }
 
-@property(nonatomic,readonly) id url;
-@property(nonatomic,readwrite,retain) id reloadData;
-@property(nonatomic,readwrite,retain) id reloadDataProperties;
+@property (nonatomic, retain) id reloadData;
 
--(void)evalFile:(NSString*)path;
--(NSString*)stringByEvaluatingJavaScriptFromString:(NSString *)code;
--(void)fireEvent:(id)listener withObject:(id)obj remove:(BOOL)yn thisObject:(id)thisObject_;
+// Used from the proxy
+- (void)setHtml_:(id)args;
+- (void)viewDidClose;
+- (void)reload;
+- (WKWebView *)webView;
 
--(void)stopLoading;
--(void)goBack;
--(void)goForward;
--(BOOL)isLoading;
--(BOOL)canGoBack;
--(BOOL)canGoForward;
--(void)reload;
+- (void)fireEvent:(id)listener withObject:(id)obj remove:(BOOL)yn thisObject:(id)thisObject_;
 
--(void)setHtml_:(NSString*)content withObject:(id)property;
+@end
+
+@interface WebAppProtocolHandler : NSObject <WKURLSchemeHandler> {
+}
+
++ (NSString *)specialProtocolScheme;
 
 @end
 

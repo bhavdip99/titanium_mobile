@@ -2,7 +2,7 @@
 name: Titanium.Calendar.Calendar
 summary: An object that represents a single calendar.
 extends: Titanium.Proxy
-platforms: [android, iphone, ipad]
+platforms: [android, iphone, ipad, macos]
 since: {android: "3.2.0", iphone: "3.1.0", ipad: "3.1.0"}
 createable: false
 
@@ -15,8 +15,23 @@ methods:
       - name: properties
         summary: Properties of the event
         type: Dictionary<Titanium.Calendar.Event>
-    platforms: [android, iphone, ipad]
-        
+    platforms: [android, iphone, ipad, macos]
+
+  - name: createEvents
+    summary: Creates multiple events at once in this calendar.
+    description: |
+        Use this method to bulk-create events for faster performance.
+        Successful or failed results are returned at the same position as passed in the parameters list.
+        For failed events, it will return `null` and <Titanium.Calendar.Event> for successful events.
+    returns:
+        type: Array<Titanium.Calendar.Event>
+    parameters:
+      - name: propertiesArray
+        summary: Array of the event properties
+        type: Array<Dictionary<Titanium.Calendar.Event>>
+    platforms: [android]
+    since: {android: "12.6.0"}
+
   - name: getEventById
     summary: Gets the event with the specified identifier.
     returns:
@@ -24,9 +39,44 @@ methods:
     parameters:
       - name: id
         summary: Identifier of the event.
+        type: String
+    platforms: [android, iphone, ipad, macos]
+
+  - name: getEventsById
+    summary: Gets multiple events with their specified identifier(s).
+    description: |
+        Use this method to bulk-fetch events for faster performance.
+        Only successful events are returned, so the identifier of events
+        should be used to compare which events were not fetched successfully.
+    returns:
+        type: Array<Titanium.Calendar.Event>
+    parameters:
+      - name: ids
+        summary: Array of identifiers of events.
+        type: [Array<Number>, Array<String>]
+    platforms: [android]
+    since: {android: "12.6.0"}
+
+  - name: deleteEvents
+    summary: Deletes multiple events with their specified identifier(s).
+    description: |
+        Use this method to bulk-delete events for faster performance.
+        This method only returns the count of successfully deleted events.
+        If it is important for apps to know whether the event was deleted or not,
+        either use the [remove()](Titanium.Calendar.Event.remove) method, or 
+        a single identifier that is passed as an array to this method.
+        If a specified identifier event does not exist, it will not be treated as a count,
+        so the count range can be in `0 <= count <= ids.length`.
+    returns:
         type: Number
-    platforms: [android, iphone, ipad]
-        
+        summary: Count of successfully deleted events.
+    parameters:
+      - name: ids
+        summary: Array of identifiers of events.
+        type: [Array<Number>, Array<String>]
+    platforms: [android]
+    since: {android: "12.6.0"}
+
   - name: getEventsBetweenDates
     summary: Gets events that occur between two dates.
     returns:
@@ -34,13 +84,13 @@ methods:
     parameters:
       - name: date1
         summary: Start date.
-        type: Date
-        
+        type: [Date,String]
+
       - name: date2
         summary: End date.
-        type: Date
-    platforms: [android, iphone, ipad]
-        
+        type: [Date,String]
+    platforms: [android, iphone, ipad, macos]
+
   - name: getEventsInDate
     summary: Gets events that occur on a specified date.
     returns:
@@ -49,16 +99,19 @@ methods:
       - name: year
         summary: Year of the events.
         type: Number
-        
+
       - name: month
         summary: Month of the events, as a zero-based integer with January at 0 and December at 11.
         type: Number
-        
+
       - name: day
         summary: Day of the month of the events.
         type: Number
-    platforms: [android, iphone, ipad]
-        
+    platforms: [android, iphone, ipad, macos]
+    deprecated:
+      since: "7.0.0"
+      notes: Use [Titanium.Calendar.Calendar.getEventsBetweenDates](Titanium.Calendar.Calendar.getEventsBetweenDates) instead.
+
   - name: getEventsInMonth
     summary: Gets events that occur during a specified month.
     returns:
@@ -67,12 +120,15 @@ methods:
       - name: year
         summary: Year of the events.
         type: Number
-        
+
       - name: month
         summary: Month of the events, as a zero-based integer with January at 0 and December at 11.
         type: Number
-    platforms: [android, iphone, ipad]
-        
+    platforms: [android, iphone, ipad, macos]
+    deprecated:
+      since: "7.0.0"
+      notes: Use [Titanium.Calendar.Calendar.getEventsBetweenDates](Titanium.Calendar.Calendar.getEventsBetweenDates) instead.
+
   - name: getEventsInYear
     summary: Gets all events that occur during a specified year.
     returns:
@@ -81,28 +137,30 @@ methods:
       - name: year
         summary: Year of the events.
         type: Number
-    platforms: [android, iphone, ipad]
-        
+    platforms: [android, iphone, ipad, macos]
+    deprecated:
+      since: "7.0.0"
+      notes: Use [Titanium.Calendar.Calendar.getEventsBetweenDates](Titanium.Calendar.Calendar.getEventsBetweenDates) instead.
+
 properties:
   - name: hidden
     summary: Indicates whether this calendar can be edited or deleted.
     description: This property is `true` when this calendar is editable.
     type: Boolean
     permission: read-only
-    platforms: [android, iphone, ipad]
-    
+    platforms: [android, iphone, ipad, macos]
+
   - name: id
-    summary: Identifier of this calendar. Available only in iOS 5.0 and above.
+    summary: Identifier of this calendar.
     type: String
     permission: read-only
-    osver: {ios: {min: "5.0"}}
-    platforms: [android, iphone, ipad]
-    
+    platforms: [android, iphone, ipad, macos]
+
   - name: name
     summary: Display name of this calendar.
     type: String
     permission: read-only
-    platforms: [android, iphone, ipad]
+    platforms: [android, iphone, ipad, macos]
 
   - name: selected
     summary: Indicates whether the calendar is selected.
@@ -113,3 +171,25 @@ properties:
     type: Boolean
     permission: read-only
     platforms: [android]
+
+  - name: sourceTitle
+    summary: Displays the source title.
+    type: String
+    permission: read-only
+    since: "6.1.0"
+    platforms: [iphone, ipad, macos]
+
+  - name: sourceType
+    summary: Displays the source type.
+    type: Number
+    permission: read-only
+    since: "6.1.0"
+    constants: Titanium.Calendar.SOURCE_TYPE_*
+    platforms: [iphone, ipad, macos]
+
+  - name: sourceIdentifier
+    summary: Displays the source identifier.
+    type: String
+    permission: read-only
+    since: "6.1.0"
+    platforms: [iphone, ipad, macos]

@@ -1,36 +1,40 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2013 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
 package ti.modules.titanium.ui;
 
+import android.app.Activity;
+
 import org.appcelerator.kroll.annotations.Kroll;
 import org.appcelerator.titanium.TiC;
-import org.appcelerator.titanium.TiContext;
 import org.appcelerator.titanium.proxy.TiViewProxy;
 import org.appcelerator.titanium.view.TiUIView;
 
 import ti.modules.titanium.ui.widget.TiUISlider;
-import android.app.Activity;
 
-@Kroll.proxy(creatableInModule=UIModule.class, propertyAccessors = {
-	"min", "max", "minRange",
-	"maxRange", "thumbImage",
-	"leftTrackImage","rightTrackImage",
-	TiC.PROPERTY_VALUE
-})
+@Kroll.proxy(creatableInModule = UIModule.class,
+	propertyAccessors = {
+		"min",
+		"max",
+		"minRange",
+		"maxRange",
+		"thumbImage",
+		TiC.PROPERTY_SPLIT_TRACK,
+		"leftTrackImage",
+		"rightTrackImage",
+		TiC.PROPERTY_TINT_COLOR,
+		TiC.PROPERTY_TRACK_TINT_COLOR,
+		TiC.PROPERTY_VALUE
+	})
 public class SliderProxy extends TiViewProxy
 {
 	public SliderProxy()
 	{
 		super();
-	}
-
-	public SliderProxy(TiContext tiContext)
-	{
-		this();
+		defaultValues.put(TiC.PROPERTY_SPLIT_TRACK, false);
 	}
 
 	@Override

@@ -1,6 +1,6 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2012 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
@@ -20,6 +20,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,10 +30,11 @@ import org.appcelerator.kroll.common.Log;
 import org.appcelerator.titanium.TiBlob;
 
 import android.net.Uri;
+import android.os.Build;
 import android.os.StatFs;
 
 /**
- * An extension of {@link TiBaseFile}, used for representing a file on the device's true file system. 
+ * An extension of {@link TiBaseFile}, used for representing a file on the device's true file system.
  * This differentiates it from TiResourceFile, which represents a file inside the application's resource bundle.
  */
 public class TiFile extends TiBaseFile
@@ -40,7 +44,6 @@ public class TiFile extends TiBaseFile
 	private final File file;
 	private final String path;
 
-	
 	public TiFile(File file, String path, boolean stream)
 	{
 		super(TiBaseFile.TYPE_FILE);
@@ -49,7 +52,6 @@ public class TiFile extends TiBaseFile
 		this.stream = stream;
 	}
 
-	
 	/**
 	 * @return true if the file is a plain file, false otherwise.
 	 */
@@ -98,22 +100,34 @@ public class TiFile extends TiBaseFile
 	/**
 	 * Attempts to create a directory named by the trailing filename of this file.
 	 * @param recursive  whether to recursively create any missing parent directories in the path.
-	 * @return  true if directory was sucessfully created, false otherwise.
+	 * @return  true if directory was successfully created, false otherwise.
 	 */
 	@Override
 	public boolean createDirectory(boolean recursive)
 	{
-		if (recursive)
-		{
+		if (recursive) {
 			return file.mkdirs();
-		}
-		else
-		{
+		} else {
 			return file.mkdir();
 		}
 	}
 
-	private boolean deleteTree(File d) {
+	@Override
+	public boolean createFile()
+	{
+		try {
+			file.getParentFile().mkdirs();
+			if (!file.exists()) {
+				return file.createNewFile();
+			}
+		} catch (IOException e) {
+			Log.e(TAG, "Error creating new file: ", e);
+		}
+		return false;
+	}
+
+	private boolean deleteTree(File d)
+	{
 		boolean deleted = true;
 
 		File[] files = d.listFiles();
@@ -145,7 +159,8 @@ public class TiFile extends TiBaseFile
 	 * @return true if the directory was successfully deleted, false otherwise.
 	 */
 	@Override
-	public boolean deleteDirectory(boolean recursive) {
+	public boolean deleteDirectory(boolean recursive)
+	{
 		boolean deleted = false;
 
 		if (recursive) {
@@ -159,7 +174,7 @@ public class TiFile extends TiBaseFile
 
 		return deleted;
 	}
-	
+
 	/**
 	 * Deletes this file.
 	 * @return true if the file was successfully deleted, false otherwise.
@@ -180,13 +195,21 @@ public class TiFile extends TiBaseFile
 	}
 
 	@Override
-	public double createTimestamp()
+	public long createTimestamp()
 	{
-		return file.lastModified();
+		if (Build.VERSION.SDK_INT >= 26) {
+			try {
+				BasicFileAttributes attr = Files.readAttributes(file.toPath(), BasicFileAttributes.class);
+				return attr.creationTime().toMillis();
+			} catch (Throwable t) {
+				// ignore, fall back to modification timestamp
+			}
+		}
+		return modificationTimestamp();
 	}
 
 	@Override
-	public double modificationTimestamp()
+	public long modificationTimestamp()
 	{
 		return file.lastModified();
 	}
@@ -202,23 +225,24 @@ public class TiFile extends TiBaseFile
 	{
 		String name = file.getName();
 		int idx = name.lastIndexOf(".");
-		if (idx != -1)
-		{
-			return name.substring(idx+1);
+		if (idx != -1) {
+			return name.substring(idx + 1);
 		}
 		return null;
 	}
 
 	@Override
 	public String nativePath()
-	{	String p = null;
+	{
+		String p = null;
 		if (file != null) {
 			p = "file://" + file.getAbsolutePath();
 		}
 		return p;
 	}
 
-	public String toURL() {
+	public String toURL()
+	{
 		String url = null;
 		url = Uri.fromFile(file).toString();
 		return url;
@@ -231,10 +255,10 @@ public class TiFile extends TiBaseFile
 	}
 
 	@Override
-	public double spaceAvailable()
+	public long spaceAvailable()
 	{
 		StatFs stat = new StatFs(file.getPath());
-		return (double)stat.getAvailableBlocks() * (double)stat.getBlockSize();
+		return stat.getAvailableBytes();
 	}
 
 	/**
@@ -259,27 +283,33 @@ public class TiFile extends TiBaseFile
 	}
 
 	@Override
-	public InputStream getInputStream() throws IOException {
+	public InputStream getInputStream() throws IOException
+	{
 		return new FileInputStream(file);
 	}
 
 	@Override
-	public OutputStream getOutputStream() throws IOException {
+	public OutputStream getOutputStream() throws IOException
+	{
 		return getOutputStream(MODE_WRITE);
 	}
 
-	public OutputStream getOutputStream(int mode) throws IOException {
-		return new FileOutputStream(file, mode == MODE_APPEND ? true : false);
+	public OutputStream getOutputStream(int mode) throws IOException
+	{
+		this.file.getParentFile().mkdirs();
+		return new FileOutputStream(this.file, (mode == MODE_APPEND));
 	}
 
-	public File getNativeFile() {
+	public File getNativeFile()
+	{
 		return file;
 	}
 
 	@Override
-	public List<String> getDirectoryListing() {
+	public List<String> getDirectoryListing()
+	{
 		File dir = getNativeFile();
-		List<String> listing = new ArrayList<String>();
+		List<String> listing = new ArrayList<>();
 
 		String[] names = dir.list();
 		if (names != null) {
@@ -291,7 +321,6 @@ public class TiFile extends TiBaseFile
 
 		return listing;
 	}
-
 
 	@Override
 	public TiBaseFile getParent()
@@ -329,7 +358,7 @@ public class TiFile extends TiBaseFile
 			if (binary) {
 				instream = new BufferedInputStream(getInputStream());
 			} else {
-				inreader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "utf-8"));
+				inreader = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8));
 			}
 		} else {
 			OutputStream os = getOutputStream(mode);
@@ -342,12 +371,6 @@ public class TiFile extends TiBaseFile
 		}
 
 		opened = true; // no exception getting here.
-	}
-
-	@Override
-	public TiBlob read() throws IOException
-	{
-		return TiBlob.blobFromFile(this);
 	}
 
 	@Override
@@ -371,6 +394,7 @@ public class TiFile extends TiBaseFile
 		return result;
 	}
 
+	@Override
 	public void write(TiBlob blob, boolean append) throws IOException
 	{
 		Log.d(TAG, "write called for file = " + file, Log.DEBUG_MODE);
@@ -392,12 +416,13 @@ public class TiFile extends TiBaseFile
 				if (binary) {
 					copyStream(blob.getInputStream(), outstream);
 				} else {
-					outwriter.write(new String(blob.getBytes(),"UTF-8"));
+					outwriter.write(new String(blob.getBytes(), StandardCharsets.UTF_8));
 				}
 			}
 		}
 	}
 
+	@Override
 	public void writeFromUrl(String url, boolean append) throws IOException
 	{
 		Log.d(TAG, "write called for file = " + file, Log.DEBUG_MODE);
@@ -437,10 +462,10 @@ public class TiFile extends TiBaseFile
 				} else {
 					BufferedReader ir = null;
 					try {
-						ir = new BufferedReader(new InputStreamReader(f.getInputStream(), "utf-8"));
+						ir = new BufferedReader(new InputStreamReader(f.getInputStream(), StandardCharsets.UTF_8));
 						copyStream(ir, outwriter);
 					} finally {
-						if(ir != null) {
+						if (ir != null) {
 							ir.close();
 						}
 					}

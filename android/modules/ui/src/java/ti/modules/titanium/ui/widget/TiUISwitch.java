@@ -1,37 +1,56 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2012 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
 package ti.modules.titanium.ui.widget;
 
+import android.app.Activity;
+import android.content.res.ColorStateList;
+import android.view.View;
+import android.widget.CompoundButton;
+import android.widget.CompoundButton.OnCheckedChangeListener;
+
+import androidx.appcompat.widget.AppCompatToggleButton;
+
+import com.google.android.material.checkbox.MaterialCheckBox;
+import com.google.android.material.chip.Chip;
+import com.google.android.material.switchmaterial.SwitchMaterial;
+
 import org.appcelerator.kroll.KrollDict;
 import org.appcelerator.kroll.KrollProxy;
 import org.appcelerator.kroll.common.Log;
+import org.appcelerator.titanium.TiApplication;
 import org.appcelerator.titanium.TiC;
 import org.appcelerator.titanium.proxy.TiViewProxy;
 import org.appcelerator.titanium.util.TiConvert;
 import org.appcelerator.titanium.util.TiUIHelper;
 import org.appcelerator.titanium.view.TiUIView;
 
-import ti.modules.titanium.ui.android.AndroidModule;
-import android.view.View;
-import android.widget.CheckBox;
-import android.widget.CompoundButton;
-import android.widget.CompoundButton.OnCheckedChangeListener;
-import android.widget.ToggleButton;
+import ti.modules.titanium.ui.UIModule;
 
-public class TiUISwitch extends TiUIView
-	implements OnCheckedChangeListener
+public class TiUISwitch extends TiUIView implements OnCheckedChangeListener
 {
 	private static final String TAG = "TiUISwitch";
-	
+
+	private final View.OnLayoutChangeListener layoutListener;
 	private boolean oldValue = false;
-	
-	public TiUISwitch(TiViewProxy proxy) {
+
+	public TiUISwitch(TiViewProxy proxy)
+	{
 		super(proxy);
 		Log.d(TAG, "Creating a switch", Log.DEBUG_MODE);
+
+		this.layoutListener = new View.OnLayoutChangeListener()
+		{
+			@Override
+			public void onLayoutChange(
+				View v, int left, int top, int right, int bottom, int oldLeft, int oldTop, int oldRight, int oldBottom)
+			{
+				TiUIHelper.firePostLayoutEvent(getProxy());
+			}
+		};
 
 		propertyChanged(TiC.PROPERTY_STYLE, null, proxy.getProperty(TiC.PROPERTY_STYLE), proxy);
 	}
@@ -42,7 +61,63 @@ public class TiUISwitch extends TiUIView
 		super.processProperties(d);
 
 		if (d.containsKey(TiC.PROPERTY_STYLE)) {
-			setStyle(TiConvert.toInt(d.get(TiC.PROPERTY_STYLE), AndroidModule.SWITCH_STYLE_TOGGLEBUTTON));
+			setStyle(TiConvert.toInt(d.get(TiC.PROPERTY_STYLE), UIModule.SWITCH_STYLE_SLIDER));
+		}
+
+		if (d.containsKeyAndNotNull(TiC.PROPERTY_THUMB_COLOR)
+			|| d.containsKeyAndNotNull(TiC.PROPERTY_ON_THUMB_COLOR)) {
+			CompoundButton currentButton = (CompoundButton) getNativeView();
+			if (currentButton instanceof SwitchMaterial) {
+
+				int colActive = d.containsKeyAndNotNull(TiC.PROPERTY_ON_THUMB_COLOR)
+					? TiConvert.toColor(d, TiC.PROPERTY_ON_THUMB_COLOR)
+					: TiConvert.toColor(d, TiC.PROPERTY_THUMB_COLOR);
+				int colNormal = d.containsKeyAndNotNull(TiC.PROPERTY_THUMB_COLOR)
+					? TiConvert.toColor(d, TiC.PROPERTY_THUMB_COLOR)
+					: TiConvert.toColor(d, TiC.PROPERTY_ON_THUMB_COLOR);
+
+				ColorStateList trackStates = new ColorStateList(
+					new int[][] {
+						new int[] { -android.R.attr.state_enabled },
+						new int[] { android.R.attr.state_checked },
+						new int[] {}
+					},
+					new int[] {
+						colNormal,
+						colActive,
+						colNormal
+					}
+				);
+				((SwitchMaterial) currentButton).setThumbTintList(trackStates);
+			}
+		}
+
+		if (d.containsKeyAndNotNull(TiC.PROPERTY_TINT_COLOR)
+			|| d.containsKeyAndNotNull(TiC.PROPERTY_ON_TINT_COLOR)) {
+			CompoundButton currentButton = (CompoundButton) getNativeView();
+			if (currentButton instanceof SwitchMaterial) {
+
+				int colActive = d.containsKeyAndNotNull(TiC.PROPERTY_ON_TINT_COLOR)
+					? TiConvert.toColor(d, TiC.PROPERTY_ON_TINT_COLOR)
+					: TiConvert.toColor(d, TiC.PROPERTY_TINT_COLOR);
+				int colNormal = d.containsKeyAndNotNull(TiC.PROPERTY_TINT_COLOR)
+					? TiConvert.toColor(d, TiC.PROPERTY_TINT_COLOR)
+					: TiConvert.toColor(d, TiC.PROPERTY_ON_TINT_COLOR);
+
+				ColorStateList trackStates = new ColorStateList(
+					new int[][] {
+						new int[] { -android.R.attr.state_enabled },
+						new int[] { android.R.attr.state_checked },
+						new int[] {}
+					},
+					new int[] {
+						colNormal,
+						colActive,
+						colNormal
+					}
+				);
+				((SwitchMaterial) currentButton).setTrackTintList(trackStates);
+			}
 		}
 
 		if (d.containsKey(TiC.PROPERTY_VALUE)) {
@@ -51,26 +126,36 @@ public class TiUISwitch extends TiUIView
 
 		View nativeView = getNativeView();
 		if (nativeView != null) {
-			updateButton((CompoundButton)nativeView, d);
+			updateButton((CompoundButton) nativeView, d);
 		}
 	}
-	
-	protected void updateButton(CompoundButton cb, KrollDict d) {
-		if (d.containsKey(TiC.PROPERTY_TITLE) && cb instanceof CheckBox) {
-			cb.setText(TiConvert.toString(d, TiC.PROPERTY_TITLE));
+
+	protected void updateButton(CompoundButton cb, KrollDict d)
+	{
+		if (d.containsKey(TiC.PROPERTY_TITLE)) {
+			if ((cb instanceof MaterialCheckBox) || (cb instanceof Chip) || (cb instanceof SwitchMaterial)) {
+				cb.setText(TiConvert.toString(d, TiC.PROPERTY_TITLE));
+			}
 		}
-		if (d.containsKey(TiC.PROPERTY_TITLE_OFF) && cb instanceof ToggleButton) {
-			((ToggleButton) cb).setTextOff(TiConvert.toString(d, TiC.PROPERTY_TITLE_OFF));
+		if (d.containsKey(TiC.PROPERTY_TITLE_OFF)) {
+			if (cb instanceof AppCompatToggleButton) {
+				((AppCompatToggleButton) cb).setTextOff(TiConvert.toString(d, TiC.PROPERTY_TITLE_OFF));
+			} else if (cb instanceof SwitchMaterial) {
+				((SwitchMaterial) cb).setTextOff(TiConvert.toString(d, TiC.PROPERTY_TITLE_OFF));
+			}
 		}
-		if (d.containsKey(TiC.PROPERTY_TITLE_ON) && cb instanceof ToggleButton) {
-			((ToggleButton) cb).setTextOn(TiConvert.toString(d, TiC.PROPERTY_TITLE_ON));
+		if (d.containsKey(TiC.PROPERTY_TITLE_ON)) {
+			if (cb instanceof AppCompatToggleButton) {
+				((AppCompatToggleButton) cb).setTextOn(TiConvert.toString(d, TiC.PROPERTY_TITLE_ON));
+			} else if (cb instanceof SwitchMaterial) {
+				((SwitchMaterial) cb).setTextOn(TiConvert.toString(d, TiC.PROPERTY_TITLE_ON));
+			}
 		}
 		if (d.containsKey(TiC.PROPERTY_VALUE)) {
-		
 			cb.setChecked(TiConvert.toBoolean(d, TiC.PROPERTY_VALUE));
 		}
 		if (d.containsKey(TiC.PROPERTY_COLOR)) {
-			cb.setTextColor(TiConvert.toColor(d, TiC.PROPERTY_COLOR));
+			cb.setTextColor(TiConvert.toColor(d, TiC.PROPERTY_COLOR, proxy.getActivity()));
 		}
 		if (d.containsKey(TiC.PROPERTY_FONT)) {
 			TiUIHelper.styleText(cb, d.getKrollDict(TiC.PROPERTY_FONT));
@@ -86,27 +171,37 @@ public class TiUISwitch extends TiUIView
 		cb.invalidate();
 	}
 
-
 	@Override
 	public void propertyChanged(String key, Object oldValue, Object newValue, KrollProxy proxy)
 	{
 		if (Log.isDebugModeEnabled()) {
 			Log.d(TAG, "Property: " + key + " old: " + oldValue + " new: " + newValue, Log.DEBUG_MODE);
 		}
-		
+
 		CompoundButton cb = (CompoundButton) getNativeView();
 		if (key.equals(TiC.PROPERTY_STYLE) && newValue != null) {
 			setStyle(TiConvert.toInt(newValue));
-		} else if (key.equals(TiC.PROPERTY_TITLE) && cb instanceof CheckBox) {
-			cb.setText((String) newValue);
-		} else if (key.equals(TiC.PROPERTY_TITLE_OFF) && cb instanceof ToggleButton) {
-			((ToggleButton) cb).setTextOff((String) newValue);
-		} else if (key.equals(TiC.PROPERTY_TITLE_ON) && cb instanceof ToggleButton) {
-			((ToggleButton) cb).setTextOff((String) newValue);
+		} else if (key.equals(TiC.PROPERTY_TITLE)) {
+			if ((cb instanceof MaterialCheckBox) || (cb instanceof Chip) || (cb instanceof SwitchMaterial)) {
+				cb.setText(TiConvert.toString(newValue));
+			}
+		} else if (key.equals(TiC.PROPERTY_TITLE_OFF)) {
+			if (cb instanceof AppCompatToggleButton) {
+				((AppCompatToggleButton) cb).setTextOff((String) newValue);
+			} else if (cb instanceof SwitchMaterial) {
+				((SwitchMaterial) cb).setTextOff((String) newValue);
+			}
+		} else if (key.equals(TiC.PROPERTY_TITLE_ON)) {
+			if (cb instanceof AppCompatToggleButton) {
+				((AppCompatToggleButton) cb).setTextOn((String) newValue);
+			} else if (cb instanceof SwitchMaterial) {
+				((SwitchMaterial) cb).setTextOn((String) newValue);
+			}
 		} else if (key.equals(TiC.PROPERTY_VALUE)) {
 			cb.setChecked(TiConvert.toBoolean(newValue));
 		} else if (key.equals(TiC.PROPERTY_COLOR)) {
-			cb.setTextColor(TiConvert.toColor(TiConvert.toString(newValue)));
+			// TODO: reset to default value when property is null
+			cb.setTextColor(TiConvert.toColor(newValue, proxy.getActivity()));
 		} else if (key.equals(TiC.PROPERTY_FONT)) {
 			TiUIHelper.styleText(cb, (KrollDict) newValue);
 		} else if (key.equals(TiC.PROPERTY_TEXT_ALIGN)) {
@@ -121,7 +216,8 @@ public class TiUISwitch extends TiUIView
 	}
 
 	@Override
-	public void onCheckedChanged(CompoundButton btn, boolean value) {
+	public void onCheckedChanged(CompoundButton btn, boolean value)
+	{
 		KrollDict data = new KrollDict();
 
 		proxy.setProperty(TiC.PROPERTY_VALUE, value);
@@ -132,38 +228,46 @@ public class TiUISwitch extends TiUIView
 			oldValue = value;
 		}
 	}
-	
+
 	protected void setStyle(int style)
 	{
 		CompoundButton currentButton = (CompoundButton) getNativeView();
 		CompoundButton button = null;
 
+		Activity activity = proxy.getActivity();
+		if (activity == null) {
+			activity = TiApplication.getAppCurrentActivity();
+			if (activity == null) {
+				return;
+			}
+		}
+
 		switch (style) {
-			case AndroidModule.SWITCH_STYLE_CHECKBOX:
-				if (!(currentButton instanceof CheckBox)) {
-					button = new CheckBox(proxy.getActivity())
-					{
-						@Override
-						protected void onLayout(boolean changed, int left, int top, int right, int bottom)
-						{
-							super.onLayout(changed, left, top, right, bottom);
-							TiUIHelper.firePostLayoutEvent(proxy);
-						}
-					};
+			case UIModule.SWITCH_STYLE_CHECKBOX:
+				if (!(currentButton instanceof MaterialCheckBox)) {
+					button = new MaterialCheckBox(activity);
 				}
 				break;
 
-			case AndroidModule.SWITCH_STYLE_TOGGLEBUTTON:
-				if (!(currentButton instanceof ToggleButton)) {
-					button = new ToggleButton(proxy.getActivity())
-					{
-						@Override
-						protected void onLayout(boolean changed, int left, int top, int right, int bottom)
-						{
-							super.onLayout(changed, left, top, right, bottom);
-							TiUIHelper.firePostLayoutEvent(proxy);
-						}
-					};
+			case UIModule.SWITCH_STYLE_TOGGLE_BUTTON:
+				if (!(currentButton instanceof AppCompatToggleButton)) {
+					button = new AppCompatToggleButton(activity);
+				}
+				break;
+
+			case UIModule.SWITCH_STYLE_SLIDER:
+				if (!(currentButton instanceof SwitchMaterial)) {
+					button = new SwitchMaterial(activity);
+					button.setMinimumHeight(0);
+					button.setMinHeight(0);
+				}
+				break;
+
+			case UIModule.SWITCH_STYLE_CHIP:
+				if (!(currentButton instanceof Chip)) {
+					Chip chip = new Chip(activity);
+					chip.setCheckable(true);
+					button = chip;
 				}
 				break;
 
@@ -174,6 +278,7 @@ public class TiUISwitch extends TiUIView
 		if (button != null) {
 			setNativeView(button);
 			updateButton(button, proxy.getProperties());
+			button.addOnLayoutChangeListener(this.layoutListener);
 			button.setOnCheckedChangeListener(this);
 		}
 	}

@@ -1,146 +1,115 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2013 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
 package ti.modules.titanium.ui;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
+import android.app.Activity;
+import android.os.Message;
 
 import org.appcelerator.kroll.KrollDict;
 import org.appcelerator.kroll.annotations.Kroll;
-import org.appcelerator.kroll.common.AsyncResult;
-import org.appcelerator.kroll.common.Log;
-import org.appcelerator.kroll.common.TiMessenger;
 import org.appcelerator.titanium.TiC;
-import org.appcelerator.titanium.TiContext;
 import org.appcelerator.titanium.proxy.TiViewProxy;
 import org.appcelerator.titanium.util.TiConvert;
 import org.appcelerator.titanium.view.TiUIView;
 
-import ti.modules.titanium.ui.widget.TiUIScrollableView;
-import android.app.Activity;
-import android.os.Message;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-@Kroll.proxy(creatableInModule=UIModule.class, propertyAccessors={
-	TiC.PROPERTY_SHOW_PAGING_CONTROL,
-	TiC.PROPERTY_OVER_SCROLL_MODE
-})
+import ti.modules.titanium.ui.widget.TiUIScrollableView;
+
+@Kroll.proxy(creatableInModule = UIModule.class,
+	propertyAccessors = {
+		TiC.PROPERTY_CACHE_SIZE,
+		TiC.PROPERTY_CLIP_VIEWS,
+		TiC.PROPERTY_PADDING,
+		TiC.PROPERTY_SHOW_PAGING_CONTROL,
+		TiC.PROPERTY_OVER_SCROLL_MODE
+	})
 public class ScrollableViewProxy extends TiViewProxy
 {
+	public static final int MIN_CACHE_SIZE = 3;
 	private static final String TAG = "TiScrollableView";
-
 	private static final int MSG_FIRST_ID = TiViewProxy.MSG_LAST_ID + 1;
 	public static final int MSG_HIDE_PAGER = MSG_FIRST_ID + 101;
 	public static final int MSG_MOVE_PREV = MSG_FIRST_ID + 102;
 	public static final int MSG_MOVE_NEXT = MSG_FIRST_ID + 103;
 	public static final int MSG_SCROLL_TO = MSG_FIRST_ID + 104;
-	public static final int MSG_SET_VIEWS = MSG_FIRST_ID + 105;
-	public static final int MSG_ADD_VIEW = MSG_FIRST_ID + 106;
 	public static final int MSG_SET_CURRENT = MSG_FIRST_ID + 107;
-	public static final int MSG_REMOVE_VIEW = MSG_FIRST_ID + 108;
 	public static final int MSG_SET_ENABLED = MSG_FIRST_ID + 109;
 	public static final int MSG_LAST_ID = MSG_FIRST_ID + 999;
-	
 	private static final int DEFAULT_PAGING_CONTROL_TIMEOUT = 3000;
-
 	protected AtomicBoolean inScroll;
+	private final List<TiViewProxy> views = new ArrayList<>();
+	private TiUIScrollableView scrollableView;
 
 	public ScrollableViewProxy()
 	{
 		super();
+
 		inScroll = new AtomicBoolean(false);
+		defaultValues.put(TiC.PROPERTY_CACHE_SIZE, MIN_CACHE_SIZE);
+		defaultValues.put(TiC.PROPERTY_CLIP_VIEWS, true);
 		defaultValues.put(TiC.PROPERTY_SHOW_PAGING_CONTROL, false);
 		defaultValues.put(TiC.PROPERTY_OVER_SCROLL_MODE, 0);
 	}
 
-	public ScrollableViewProxy(TiContext context)
+	@Override
+	public void handleCreationDict(KrollDict properties)
 	{
-		this();
+		super.handleCreationDict(properties);
+
+		if (properties.containsKey(TiC.PROPERTY_VIEWS)) {
+			setViews(properties.get(TiC.PROPERTY_VIEWS));
+		}
 	}
 
 	@Override
 	public TiUIView createView(Activity activity)
 	{
-		return new TiUIScrollableView(this);
-	}
-
-	protected TiUIScrollableView getView()
-	{
-		return (TiUIScrollableView) getOrCreateView();
+		this.scrollableView = new TiUIScrollableView(this);
+		return this.scrollableView;
 	}
 
 	public boolean handleMessage(Message msg)
 	{
 		boolean handled = false;
 
-		switch(msg.what) {
+		switch (msg.what) {
 			case MSG_HIDE_PAGER:
-				getView().hidePager();
-				handled = true;
+				if (scrollableView != null) {
+					scrollableView.hidePager();
+					handled = true;
+				}
 				break;
 			case MSG_MOVE_PREV:
-				inScroll.set(true);
-				getView().movePrevious();
-				inScroll.set(false);
-				handled = true;
+				if (scrollableView != null) {
+					inScroll.set(true);
+					scrollableView.movePrevious();
+					inScroll.set(false);
+					handled = true;
+				}
 				break;
 			case MSG_MOVE_NEXT:
-				inScroll.set(true);
-				getView().moveNext();
-				inScroll.set(false);
-				handled = true;
+				if (scrollableView != null) {
+					inScroll.set(true);
+					scrollableView.moveNext();
+					inScroll.set(false);
+					handled = true;
+				}
 				break;
 			case MSG_SCROLL_TO:
-				inScroll.set(true);
-				getView().scrollTo(msg.obj);
-				inScroll.set(false);
-				handled = true;
-				break;
-			case MSG_SET_CURRENT:
-				getView().setCurrentPage(msg.obj);
-				handled = true;
-				break;
-			case MSG_SET_VIEWS: {
-				AsyncResult holder = (AsyncResult) msg.obj;
-				Object views = holder.getArg(); 
-				getView().setViews(views);
-				holder.setResult(null);
-				handled = true;
-				break;
-			}
-			case MSG_ADD_VIEW: {
-				AsyncResult holder = (AsyncResult) msg.obj;
-				Object view = holder.getArg();
-				if (view instanceof TiViewProxy) {
-					getView().addView((TiViewProxy) view);
+				if (scrollableView != null) {
+					inScroll.set(true);
+					scrollableView.scrollTo(msg.obj);
+					inScroll.set(false);
 					handled = true;
-				} else if (view != null) {
-					Log.w(TAG, "addView() ignored. Expected a Titanium view object, got " + view.getClass().getSimpleName());
 				}
-				holder.setResult(null);
 				break;
-			}
-			case MSG_REMOVE_VIEW: {
-				AsyncResult holder = (AsyncResult) msg.obj;
-				Object view = holder.getArg(); 
-				if (view instanceof TiViewProxy) {
-					getView().removeView((TiViewProxy) view);
-					handled = true;
-				} else if (view != null) {
-					Log.w(TAG, "removeView() ignored. Expected a Titanium view object, got " + view.getClass().getSimpleName());
-				}
-				holder.setResult(null);
-				break;
-			}
-			case MSG_SET_ENABLED: {
-				getView().setEnabled(msg.obj);
-				handled = true;
-				break;
-			}
 			default:
 				handled = super.handleMessage(msg);
 		}
@@ -148,44 +117,164 @@ public class ScrollableViewProxy extends TiViewProxy
 		return handled;
 	}
 
-	@Kroll.getProperty @Kroll.method
-	public Object getViews()
+	public void removeAllViews()
 	{
-		List<TiViewProxy> list = new ArrayList<TiViewProxy>();
-		return getView().getViews().toArray(new TiViewProxy[list.size()]);
+		for (final TiViewProxy view : this.views) {
+			view.releaseViews();
+			view.setParent(null);
+		}
+		this.views.clear();
+
+		if (scrollableView != null) {
+			scrollableView.getAdapter().notifyDataSetChanged();
+		}
 	}
 
-	@Kroll.setProperty @Kroll.method
-	public void setViews(Object viewsObject)
+	public ArrayList<TiViewProxy> getViewsList()
 	{
-		TiMessenger.sendBlockingMainMessage(getMainHandler().obtainMessage(MSG_SET_VIEWS), viewsObject);
+		return (ArrayList<TiViewProxy>) this.views;
+	}
+
+	@Kroll.getProperty
+	public TiViewProxy[] getViews()
+	{
+		return this.views.toArray(new TiViewProxy[0]);
+	}
+
+	@Kroll.setProperty
+	public void setViews(Object views)
+	{
+		// Clone current view list.
+		ArrayList<TiViewProxy> oldViewList = new ArrayList<>(this.views);
+
+		// Replace all views with the given view collection.
+		this.views.clear();
+		if (views instanceof Object[]) {
+			for (final Object nextObject : (Object[]) views) {
+				if (nextObject instanceof TiViewProxy) {
+					TiViewProxy view = (TiViewProxy) nextObject;
+					if (!this.views.contains(view)) {
+						view.setActivity(getActivity());
+						view.setParent(this);
+						this.views.add(view);
+					}
+				}
+			}
+		}
+
+		// Release all of the views that are no longer attached to this scrollable view.
+		// Note: If given collection contains views in old collection, then do not release them.
+		for (TiViewProxy oldView : oldViewList) {
+			if (!this.views.contains(oldView)) {
+				oldView.releaseViews();
+				oldView.setParent(null);
+			}
+		}
+
+		// Notify native scrollable view about the view collection change.
+		if (this.scrollableView != null) {
+			this.scrollableView.getAdapter().notifyDataSetChanged();
+		}
 	}
 
 	@Kroll.method
-	public void addView(Object viewObject)
+	public void addView(TiViewProxy view)
 	{
-		TiMessenger.sendBlockingMainMessage(getMainHandler().obtainMessage(MSG_ADD_VIEW), viewObject);
+		// Validate argument.
+		if (view == null) {
+			return;
+		}
+
+		// Do not continue if already added.
+		if (this.views.contains(view)) {
+			return;
+		}
+
+		// Add given view to collection.
+		view.setActivity(getActivity());
+		view.setParent(this);
+		this.views.add(view);
+
+		// Notify native scrollable view about the added child view.
+		if (this.scrollableView != null) {
+			this.scrollableView.getAdapter().notifyDataSetChanged();
+		}
+	}
+
+	@Kroll.method
+	public void insertViewsAt(int insertIndex, Object viewObject)
+	{
+		if (viewObject instanceof TiViewProxy) {
+			final TiViewProxy view = (TiViewProxy) viewObject;
+
+			if (!this.views.contains(view)) {
+				view.setActivity(getActivity());
+				view.setParent(this);
+				this.views.add(insertIndex, view);
+			}
+
+		} else if (viewObject instanceof Object[]) {
+			Object[] views = (Object[]) viewObject;
+
+			for (int i = 0; i < views.length; i++) {
+				insertViewsAt(insertIndex, views[i]);
+			}
+		} else {
+
+			// Skip updating adapter.
+			return;
+		}
+
+		if (scrollableView != null) {
+			scrollableView.getAdapter().notifyDataSetChanged();
+		}
 	}
 
 	@Kroll.method
 	public void removeView(Object viewObject)
 	{
-		TiMessenger.sendBlockingMainMessage(getMainHandler().obtainMessage(MSG_REMOVE_VIEW), viewObject);
+		if (viewObject instanceof Number) {
+			this.views.remove((int) viewObject);
+
+		} else if (viewObject instanceof TiViewProxy) {
+			final TiViewProxy view = (TiViewProxy) viewObject;
+
+			this.views.remove(view);
+
+		} else {
+
+			// Skip updating adapter.
+			return;
+		}
+
+		if (scrollableView != null) {
+			final int currentPage = scrollableView.getCurrentPage();
+
+			scrollableView.getAdapter().notifyDataSetChanged();
+
+			if (currentPage >= this.views.size()) {
+
+				// Last view removed, set to valid view.
+				scrollableView.setCurrentPage(this.views.size() - 1);
+			}
+		}
 	}
 
 	@Kroll.method
 	public void scrollToView(Object view)
 	{
-		if (inScroll.get()) return;
-
+		if (inScroll.get()) {
+			return;
+		}
 		getMainHandler().obtainMessage(MSG_SCROLL_TO, view).sendToTarget();
 	}
 
 	@Kroll.method
 	public void movePrevious()
 	{
-		if (inScroll.get()) return;
-
+		if (inScroll.get()) {
+			return;
+		}
 		getMainHandler().removeMessages(MSG_MOVE_PREV);
 		getMainHandler().sendEmptyMessage(MSG_MOVE_PREV);
 	}
@@ -193,8 +282,9 @@ public class ScrollableViewProxy extends TiViewProxy
 	@Kroll.method
 	public void moveNext()
 	{
-		if (inScroll.get()) return;
-
+		if (inScroll.get()) {
+			return;
+		}
 		getMainHandler().removeMessages(MSG_MOVE_NEXT);
 		getMainHandler().sendEmptyMessage(MSG_MOVE_NEXT);
 	}
@@ -214,7 +304,8 @@ public class ScrollableViewProxy extends TiViewProxy
 		}
 	}
 
-	public void fireDragEnd(int currentPage, TiViewProxy currentView) {
+	public void fireDragEnd(int currentPage, TiViewProxy currentView)
+	{
 		if (hasListeners(TiC.EVENT_DRAGEND)) {
 			KrollDict options = new KrollDict();
 			options.put("view", currentView);
@@ -258,45 +349,66 @@ public class ScrollableViewProxy extends TiViewProxy
 		}
 	}
 
-	@Kroll.setProperty @Kroll.method
-	public void setScrollingEnabled(Object enabled)
-	{
-		getMainHandler().obtainMessage(MSG_SET_ENABLED, enabled).sendToTarget();
-	}
-
-	@Kroll.getProperty @Kroll.method
+	@Kroll.getProperty
 	public boolean getScrollingEnabled()
 	{
-		return getView().getEnabled();
+		return (scrollableView != null) ? scrollableView.getEnabled()
+			: getProperties().optBoolean(TiC.PROPERTY_SCROLLING_ENABLED, true);
 	}
 
-	@Kroll.getProperty @Kroll.method
+	@Kroll.setProperty
+	public void setScrollingEnabled(boolean value)
+	{
+		if (scrollableView != null) {
+			scrollableView.setEnabled(value);
+		}
+	}
+
+	@Kroll.getProperty
 	public int getCurrentPage()
 	{
-		return getView().getCurrentPage();
+		return (scrollableView != null) ? scrollableView.getCurrentPage()
+			: getProperties().optInt(TiC.PROPERTY_CURRENT_PAGE, 0);
 	}
 
-	@Kroll.setProperty @Kroll.method
-	public void setCurrentPage(Object page)
+	@Kroll.setProperty
+	public void setCurrentPage(int currentPage)
 	{
-		//getView().setCurrentPage(page);
-		getMainHandler().obtainMessage(MSG_SET_CURRENT, page).sendToTarget();
+		setProperty(TiC.PROPERTY_CURRENT_PAGE, currentPage);
+
+		if (scrollableView != null) {
+			scrollableView.setCurrentPage(currentPage);
+		}
 	}
 
 	@Override
 	public void releaseViews()
 	{
 		getMainHandler().removeMessages(MSG_HIDE_PAGER);
+
+		for (final TiViewProxy view : this.views) {
+			view.releaseViews();
+		}
+
+		// Remove out-of-date views from proxy.
+		// Prevents using old views upon re-creation.
+		this.properties.remove(TiC.PROPERTY_VIEWS);
+
+		// Remove reference to scrollable view component.
+		// NOTE: This is the same as `this.view`
+		this.scrollableView = null;
+
 		super.releaseViews();
+
 	}
-	
+
 	@Override
 	public void setActivity(Activity activity)
 	{
 		super.setActivity(activity);
-		ArrayList<TiViewProxy> list = getView().getViews();
-		for (TiViewProxy proxy : list) {
-			proxy.setActivity(activity);
+
+		for (final TiViewProxy view : this.views) {
+			view.setActivity(activity);
 		}
 	}
 

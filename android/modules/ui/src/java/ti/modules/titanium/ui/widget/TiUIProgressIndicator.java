@@ -1,6 +1,6 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2012 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
@@ -22,18 +22,17 @@ import org.appcelerator.titanium.view.TiUIView;
 import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.DialogInterface;
-import android.os.Handler;
-import android.os.Looper;
-import android.os.Message;
+import android.graphics.Color;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
+import android.os.Build;
+import android.widget.ProgressBar;
+import com.google.android.material.color.MaterialColors;
 
-public class TiUIProgressIndicator extends TiUIView
-	implements Handler.Callback, DialogInterface.OnCancelListener
+public class TiUIProgressIndicator extends TiUIView implements
+	DialogInterface.OnShowListener, DialogInterface.OnCancelListener, DialogInterface.OnDismissListener
 {
 	private static final String TAG = "TiUIProgressDialog";
-
-	private static final int MSG_SHOW = 100;
-	private static final int MSG_PROGRESS = 101;
-	private static final int MSG_HIDE = 102;
 
 	public static final int INDETERMINANT = 0;
 	public static final int DETERMINANT = 1;
@@ -41,46 +40,19 @@ public class TiUIProgressIndicator extends TiUIView
 	public static final int STATUS_BAR = 0;
 	public static final int DIALOG = 1;
 
-	protected Handler handler;
-
 	protected boolean visible;
 	protected ProgressDialog progressDialog;
-	protected String statusBarTitle;
+	protected CharSequence statusBarTitle;
 	protected int incrementFactor;
 	protected int location;
 	protected int min;
 	protected int max;
 	protected int type;
 
-	public TiUIProgressIndicator(TiViewProxy proxy) {
+	public TiUIProgressIndicator(TiViewProxy proxy)
+	{
 		super(proxy);
 		Log.d(TAG, "Creating an progress indicator", Log.DEBUG_MODE);
-		handler = new Handler(Looper.getMainLooper(), this);
-	}
-
-	public boolean handleMessage(Message msg)
-	{
-		switch (msg.what) {
-			case MSG_SHOW : {
-				handleShow();
-				return true;
-			}
-			case MSG_PROGRESS : {
-				if (progressDialog != null) {
-					progressDialog.setProgress(msg.arg1);
-				} else {
-					Activity parent = (Activity) this.proxy.getActivity();
-					parent.setProgress(msg.arg1);
-				}
-				return true;
-			}
-			case MSG_HIDE : {
-				handleHide();
-				return true;
-			}
-		}
-
-		return false;
 	}
 
 	@Override
@@ -109,10 +81,15 @@ public class TiUIProgressIndicator extends TiUIView
 
 		} else if (key.equals(TiC.PROPERTY_VALUE)) {
 			if (visible) {
-				int value = TiConvert.toInt(newValue);
-				int thePos = (value - min) * incrementFactor;
-
-				handler.obtainMessage(MSG_PROGRESS, thePos, -1).sendToTarget();
+				int progressValue = (TiConvert.toInt(newValue, 0) - this.min) * this.incrementFactor;
+				if (this.progressDialog != null) {
+					this.progressDialog.setProgress(progressValue);
+				} else {
+					Activity activity = (Activity) this.proxy.getActivity();
+					if (activity != null) {
+						activity.setProgress(progressValue);
+					}
+				}
 			}
 
 		} else if (key.equals(TiC.PROPERTY_CANCELABLE)) {
@@ -120,6 +97,8 @@ public class TiUIProgressIndicator extends TiUIView
 				progressDialog.setCancelable(TiConvert.toBoolean(newValue));
 			}
 
+		} else if (key.equals(TiC.PROPERTY_CANCELED_ON_TOUCH_OUTSIDE) && progressDialog != null) {
+			progressDialog.setCanceledOnTouchOutside(TiConvert.toBoolean(newValue));
 		} else {
 			super.propertyChanged(key, oldValue, newValue, proxy);
 		}
@@ -171,94 +150,184 @@ public class TiUIProgressIndicator extends TiUIView
 			type = TiConvert.toInt(proxy.getProperty(TiC.PROPERTY_TYPE));
 		}
 
+		int progressValue = TiConvert.toInt(proxy.getProperty(TiC.PROPERTY_VALUE), 0);
+
 		if (location == STATUS_BAR) {
 			incrementFactor = 10000 / (max - min);
 			Activity parent = (Activity) proxy.getActivity();
-
+			if ((parent == null) || parent.isFinishing() || parent.isDestroyed()) {
+				Log.w(TAG, "Cannot show progress indicator in status bar. No activities are available to host it.");
+				return;
+			}
 			if (type == INDETERMINANT) {
 				parent.setProgressBarIndeterminate(true);
 				parent.setProgressBarIndeterminateVisibility(true);
-				statusBarTitle = parent.getTitle().toString();
+				statusBarTitle = parent.getTitle();
 				parent.setTitle(message);
 			} else if (type == DETERMINANT) {
 				parent.setProgressBarIndeterminate(false);
 				parent.setProgressBarIndeterminateVisibility(false);
 				parent.setProgressBarVisibility(true);
-				statusBarTitle = parent.getTitle().toString();
+				parent.setProgress((progressValue - this.min) * this.incrementFactor);
+				statusBarTitle = parent.getTitle();
 				parent.setTitle(message);
 			} else {
 				Log.w(TAG, "Unknown type: " + type);
+				return;
 			}
 		} else if (location == DIALOG) {
 			incrementFactor = 1;
+
+			// If existing dialog references a destroyed activity, then drop reference to dialog.
+			if (progressDialog != null) {
+				Activity activity = progressDialog.getOwnerActivity();
+				if ((activity == null) || activity.isFinishing() || activity.isDestroyed()) {
+					progressDialog = null;
+				}
+			}
+
+			// Create progress dialog if not done already.
 			if (progressDialog == null) {
 				Activity a = TiApplication.getInstance().getCurrentActivity();
-				if (a == null) {
-					a = TiApplication.getInstance().getRootActivity();
+				if ((a == null) || a.isFinishing() || a.isDestroyed()) {
+					Log.w(TAG, "Cannot show progress indicator dialog. No activities are available to host it.");
+					return;
 				}
 				progressDialog = new ProgressDialog(a);
 				if (a instanceof TiBaseActivity) {
 					TiBaseActivity baseActivity = (TiBaseActivity) a;
-					baseActivity.addDialog(baseActivity.new DialogWrapper(progressDialog, true, new WeakReference<TiBaseActivity> (baseActivity)));
+					baseActivity.addDialog(new TiBaseActivity.DialogWrapper(
+						progressDialog, true, new WeakReference<>(baseActivity)));
 					progressDialog.setOwnerActivity(a);
 				}
+				progressDialog.setOnShowListener(this);
 				progressDialog.setOnCancelListener(this);
+				progressDialog.setOnDismissListener(this);
 			}
 
+			// Set up dialog.
+			// Note: We must call setCanceledOnTouchOutside() before setCancelable().
 			progressDialog.setMessage(message);
+			progressDialog.setCanceledOnTouchOutside(
+				proxy.getProperties().optBoolean(TiC.PROPERTY_CANCELED_ON_TOUCH_OUTSIDE, false));
 			progressDialog.setCancelable(proxy.getProperties().optBoolean(TiC.PROPERTY_CANCELABLE, false));
-
 			if (type == INDETERMINANT) {
 				progressDialog.setIndeterminate(true);
 			} else if (type == DETERMINANT) {
 				progressDialog.setIndeterminate(false);
 				progressDialog.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
-				if (min != 0) {
-					progressDialog.setMax(max-min); // no min setting so shift
-				} else {
-					progressDialog.setMax(max);
-				}
-				progressDialog.setProgress(0);
+				progressDialog.setMax(this.max - this.min);
 			} else {
 				Log.w(TAG, "Unknown type: " + type);
 			}
-			progressDialog.show();
+
+			// Show the dialog.
+			// Note: The setProgress() method only works after the dialog is shown.
+			try {
+				progressDialog.show();
+				if (type == DETERMINANT) {
+					progressDialog.setProgress(progressValue - this.min);
+				}
+			} catch (Exception ex) {
+				Log.e(TAG, "Failed to show progress indicator dialog.", ex);
+				return;
+			}
 		} else {
 			Log.w(TAG, "Unknown location: " + location);
+			return;
 		}
+
+		// Flag progress indicator as shown.
 		visible = true;
 	}
 
 	public void hide(KrollDict options)
 	{
-		if (!visible) {
-			return;
-		}
-		handler.sendEmptyMessage(MSG_HIDE);
+		handleHide();
 	}
 
-	protected void handleHide() {
-		if (progressDialog != null) {
-			Activity ownerActivity = progressDialog.getOwnerActivity();
-			if (ownerActivity != null && !ownerActivity.isFinishing()) {
-				((TiBaseActivity)ownerActivity).removeDialog(progressDialog);
-				progressDialog.dismiss();
-			}
-			progressDialog = null;
-		} else {
-			Activity parent = (Activity) proxy.getActivity();
-			parent.setProgressBarIndeterminate(false);
-			parent.setProgressBarIndeterminateVisibility(false);
-			parent.setProgressBarVisibility(false);
-			parent.setTitle(statusBarTitle);
-			statusBarTitle = null;
+	protected void handleHide()
+	{
+		if (!this.visible) {
+			return;
 		}
-		visible = false;
+
+		if (this.location == DIALOG) {
+			if (this.progressDialog != null) {
+				Activity ownerActivity = this.progressDialog.getOwnerActivity();
+				if (ownerActivity instanceof TiBaseActivity) {
+					((TiBaseActivity) ownerActivity).removeDialog(progressDialog);
+					if (!ownerActivity.isFinishing() && !ownerActivity.isDestroyed()) {
+						try {
+							this.progressDialog.dismiss();
+						} catch (Exception ex) {
+							Log.e(TAG, "Failed to hide ProgressIndicator dialog.", ex);
+						}
+					}
+				}
+				this.progressDialog = null;
+			}
+		} else if (this.location == STATUS_BAR) {
+			Activity parent = proxy.getActivity();
+			if (parent != null) {
+				parent.setProgressBarIndeterminate(false);
+				parent.setProgressBarIndeterminateVisibility(false);
+				parent.setProgressBarVisibility(false);
+				if (this.visible) {
+					parent.setTitle(this.statusBarTitle);
+				}
+			}
+			this.statusBarTitle = null;
+		}
+
+		this.visible = false;
 	}
 
 	@Override
-	public void onCancel(DialogInterface dialog) {
-		visible = false;
+	public void onShow(DialogInterface dialog)
+	{
+		// Fetch progress dialog reference.
+		// Note: Argument won't match "progressDialog" member variable if hide() was called before dialog was shown.
+		if ((dialog instanceof ProgressDialog) == false) {
+			return;
+		}
+		ProgressDialog progressDialog = (ProgressDialog) dialog;
+
+		// Work-around Android 5.x and older issue where it ignores "indeterminateTint" color in theme.
+		// Only happens to the indeterminate type. The determinate type is okay.
+		if ((Build.VERSION.SDK_INT < 23) && progressDialog.isIndeterminate()) {
+			var view = progressDialog.findViewById(android.R.id.progress);
+			if (view instanceof ProgressBar) {
+				int colorValue = MaterialColors.getColor(
+					progressDialog.getContext(), android.R.attr.indeterminateTint, Color.TRANSPARENT);
+				var drawable = ((ProgressBar) view).getIndeterminateDrawable();
+				if ((colorValue != Color.TRANSPARENT) && (drawable != null)) {
+					drawable.setColorFilter(new PorterDuffColorFilter(colorValue, PorterDuff.Mode.SRC_IN));
+				}
+			}
+		}
+	}
+
+	@Override
+	public void onCancel(DialogInterface dialog)
+	{
+		if (dialog != this.progressDialog) {
+			return;
+		}
+
+		this.visible = false;
+		this.progressDialog = null;
 		fireEvent(TiC.EVENT_CANCEL, null);
+	}
+
+	@Override
+	public void onDismiss(DialogInterface dialog)
+	{
+		if (dialog != this.progressDialog) {
+			return;
+		}
+
+		this.visible = false;
+		this.progressDialog = null;
 	}
 }

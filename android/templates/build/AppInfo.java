@@ -45,15 +45,11 @@ public final class <%- classname %>AppInfo implements ITiAppInfo
 	}
 
 	public String getDescription() {
-		return "<%- tiapp.description %>";
+		return "<%- tiapp.description.replace(/\"/g, '\\"') %>";
 	}
 
 	public String getIcon() {
 		return "<%- tiapp.icon %>";
-	}
-
-	public boolean isAnalyticsEnabled() {
-		return <%- !!tiapp.analytics %>;
 	}
 
 	public String getGUID() {
@@ -64,7 +60,7 @@ public final class <%- classname %>AppInfo implements ITiAppInfo
 		return <%- !!tiapp.fullscreen %>;
 	}
 
-	public boolean isNavBarHidden() {
-		return <%- !!tiapp['navbar-hidden'] %>;
+	public String getBuildType() {
+		return "<%- buildType %>";
 	}
 }

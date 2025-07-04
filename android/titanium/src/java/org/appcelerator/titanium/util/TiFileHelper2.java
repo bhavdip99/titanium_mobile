@@ -1,16 +1,20 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2010 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
 package org.appcelerator.titanium.util;
 
+import android.content.Context;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import org.appcelerator.titanium.TiApplication;
 import org.appcelerator.titanium.TiC;
 
 public class TiFileHelper2
 {
-	public static final String APP_SCHEME= "app://";
+	public static final String APP_SCHEME = "app://";
 
 	/**
 	 * Joins a path with a relative "Resources" folder
@@ -25,7 +29,7 @@ public class TiFileHelper2
 	/**
 	 * Joins many String path segments into one path
 	 * @param segments A vararg (or String array) of path segments
-	 * @return The passed-in segements normalized and joined by "/"
+	 * @return The passed-in segments normalized and joined by "/"
 	 */
 	public static String joinSegments(String... segments)
 	{
@@ -34,7 +38,7 @@ public class TiFileHelper2
 		}
 
 		String s1 = segments[0];
-		for(int i = 1; i < segments.length; i++) {
+		for (int i = 1; i < segments.length; i++) {
 			String s2 = segments[i];
 			if (s1.endsWith("/")) {
 				if (s2.startsWith("/")) {
@@ -77,4 +81,20 @@ public class TiFileHelper2
 		return null;
 	}
 
+	public static boolean hasStoragePermission()
+	{
+		if (Build.VERSION.SDK_INT < 23) {
+			return true;
+		}
+		Context context = TiApplication.getInstance().getApplicationContext();
+		// Fix for TIMOB-20434 where activity is null
+		if (context == null) {
+			return false;
+		}
+		if (context.checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+			== PackageManager.PERMISSION_GRANTED) {
+			return true;
+		}
+		return false;
+	}
 }

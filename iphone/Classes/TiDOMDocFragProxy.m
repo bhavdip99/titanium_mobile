@@ -1,6 +1,6 @@
 /**
- * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2010 by Appcelerator, Inc. All Rights Reserved.
+ * Titanium SDK
+ * Copyright TiDev, Inc. 04/07/2022-Present. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
@@ -10,15 +10,15 @@
 // Corresponds to Interface DocumentFragment of DOM2 Spec
 @implementation TiDOMDocFragProxy
 
--(NSString*)apiName
+- (NSString *)apiName
 {
-    return @"Ti.XML.DocumentFragment";
+  return @"Ti.XML.DocumentFragment";
 }
 
--(id)nodeValue
+- (id)nodeValue
 {
-	// DOM spec says nodeValue must return null
-	return [NSNull null];
+  // DOM spec says nodeValue must return null
+  return [NSNull null];
 }
 @end
 #endif
